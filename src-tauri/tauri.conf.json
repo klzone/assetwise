@@ -1,0 +1,67 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "AssetWise",
+  "version": "1.0.0",
+  "identifier": "com.assetwise.app",
+  "build": {
+    "frontendDist": "../out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "set TAURI_BUILD=true && pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AssetWise - 智能投资组合管理",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "visible": true,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": false
+  },
+  "plugins": {
+    "log": {
+      "targets": [
+        {
+          "target": "LogTarget::Stdout"
+        },
+        {
+          "target": "LogTarget::Webview"
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "AssetWise Team",
+    "copyright": "© 2024 AssetWise Team",
+    "category": "Finance",
+    "shortDescription": "智能投资组合管理系统",
+    "longDescription": "AssetWise是一个专业的投资组合管理系统，提供资产分析、交易记录、复盘日志等功能，帮助投资者更好地管理和分析投资组合。",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      }
+    }
+  }
+}

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>云端下载功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 云端下载功能测试工具</h1>
+        
+        <div class="section">
+            <h3>📊 本地存储状态检查</h3>
+            <button onclick="checkLocalStorage()">检查本地存储</button>
+            <button onclick="clearLocalStorage()">清空本地存储</button>
+            <div id="storageStatus" class="log"></div>
+        </div>
+
+        <div class="section">
+            <h3>☁️ 云端下载测试</h3>
+            <button onclick="testCloudDownload()" id="downloadBtn">测试云端下载</button>
+            <div id="downloadLog" class="log"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔍 数据验证</h3>
+            <button onclick="validateData()">验证下载的数据</button>
+            <div id="validationLog" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            element.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function checkLocalStorage() {
+            const statusDiv = document.getElementById('storageStatus');
+            statusDiv.innerHTML = '';
+            
+            log('storageStatus', '🔍 检查本地存储状态...', 'info');
+            
+            // 检查各种存储键
+            const keys = [
+                'assetwise_accounts',
+                'assetwise_accounts_direct', 
+                'assetwise_transactions',
+                'assetwise_transactions_direct',
+                'assetwise_reviews',
+                'assetwise_reviews_direct',
+                'assetwise_assets',
+                'assetwise_investment_plans'
+            ];
+            
+            keys.forEach(key => {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        const count = Array.isArray(parsed) ? parsed.length : 'N/A';
+                        log('storageStatus', `✅ ${key}: ${count} 条记录`, 'success');
+                    } catch (e) {
+                        log('storageStatus', `⚠️ ${key}: 数据格式错误`, 'error');
+                    }
+                } else {
+                    log('storageStatus', `❌ ${key}: 无数据`, 'error');
+                }
+            });
+        }
+
+        function clearLocalStorage() {
+            if (confirm('确定要清空所有本地存储数据吗？')) {
+                const keys = [
+                    'assetwise_accounts',
+                    'assetwise_accounts_direct', 
+                    'assetwise_transactions',
+                    'assetwise_transactions_direct',
+                    'assetwise_reviews',
+                    'assetwise_reviews_direct',
+                    'assetwise_assets',
+                    'assetwise_investment_plans'
+                ];
+                
+                keys.forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                log('storageStatus', '🗑️ 本地存储已清空', 'info');
+                checkLocalStorage();
+            }
+        }
+
+        async function testCloudDownload() {
+            const downloadBtn = document.getElementById('downloadBtn');
+            const logDiv = document.getElementById('downloadLog');
+
+            logDiv.innerHTML = '';
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '下载中...';
+
+            try {
+                log('downloadLog', '🚀 开始测试云端下载功能...', 'info');
+
+                // 使用数据库中实际存在的用户ID
+                const userId = '11ed58fc-b9cc-4c6b-ba81-b9c9f5190f37';
+
+                log('downloadLog', `👤 使用用户ID: ${userId}`, 'info');
+
+                // 首先确保用户已登录
+                log('downloadLog', '🔐 设置测试用户...', 'info');
+
+                // 设置测试用户到localStorage
+                const testUser = {
+                    id: userId,
+                    email: 'yvanai@outlook.com',
+                    username: 'test_user',
+                    full_name: '测试用户',
+                    avatar_url: '',
+                    subscription_type: 'flagship',
+                    subscription_expires_at: undefined,
+                    phone: '13590202',
+                    location: '深圳',
+                    bio: '思考中……'
+                };
+
+                localStorage.setItem('assetwise_current_user', JSON.stringify(testUser));
+
+                // 设置用户状态到Zustand store
+                if (window.useUserStore) {
+                    const userStore = window.useUserStore.getState();
+                    userStore.setUser(testUser);
+                    userStore.setAuthenticated(true);
+                    log('downloadLog', '✅ 用户状态已设置', 'success');
+                } else {
+                    log('downloadLog', '⚠️ 无法访问用户状态管理', 'info');
+                }
+
+                log('downloadLog', '☁️ 开始云端下载...', 'info');
+                log('downloadLog', '💡 请在Profile页面点击"从云端下载"按钮进行测试', 'info');
+                log('downloadLog', '🔍 或者在浏览器控制台执行以下代码:', 'info');
+                log('downloadLog', `window.location.href = '/profile'`, 'info');
+
+            } catch (error) {
+                log('downloadLog', `❌ 下载失败: ${error.message}`, 'error');
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '测试云端下载';
+            }
+        }
+
+        function validateData() {
+            const logDiv = document.getElementById('validationLog');
+            logDiv.innerHTML = '';
+            
+            log('validationLog', '🔍 开始验证下载的数据...', 'info');
+            
+            // 检查账户数据
+            const accounts = localStorage.getItem('assetwise_accounts_direct');
+            const accountsDirect = localStorage.getItem('assetwise_accounts');
+            
+            if (accounts || accountsDirect) {
+                log('validationLog', '✅ 账户数据存在', 'success');
+                if (accounts) {
+                    const accountsData = JSON.parse(accounts);
+                    log('validationLog', `📊 Direct账户数据: ${accountsData.length} 条`, 'info');
+                }
+                if (accountsDirect) {
+                    const accountsDirectData = JSON.parse(accountsDirect);
+                    log('validationLog', `📊 Manager账户数据: ${accountsDirectData.length} 条`, 'info');
+                }
+            } else {
+                log('validationLog', '❌ 未找到账户数据', 'error');
+            }
+            
+            // 检查交易数据
+            const transactions = localStorage.getItem('assetwise_transactions_direct');
+            const transactionsDirect = localStorage.getItem('assetwise_transactions');
+            
+            if (transactions || transactionsDirect) {
+                log('validationLog', '✅ 交易数据存在', 'success');
+                if (transactions) {
+                    const transactionsData = JSON.parse(transactions);
+                    log('validationLog', `💰 Direct交易数据: ${transactionsData.length} 条`, 'info');
+                }
+                if (transactionsDirect) {
+                    const transactionsDirectData = JSON.parse(transactionsDirect);
+                    log('validationLog', `💰 Manager交易数据: ${transactionsDirectData.length} 条`, 'info');
+                }
+            } else {
+                log('validationLog', '❌ 未找到交易数据', 'error');
+            }
+            
+            log('validationLog', '✅ 数据验证完成', 'success');
+        }
+
+        // 页面加载时自动检查存储状态
+        window.onload = function() {
+            checkLocalStorage();
+        };
+    </script>
+</body>
+</html>

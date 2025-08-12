@@ -1,0 +1,649 @@
+
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>AssetWise 测试报告</title>
+      <style>
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        h1, h2, h3 {
+          color: #2c3e50;
+        }
+        .summary {
+          display: flex;
+          justify-content: space-between;
+          background-color: #f8f9fa;
+          padding: 15px;
+          border-radius: 5px;
+          margin-bottom: 20px;
+        }
+        .summary-item {
+          text-align: center;
+        }
+        .summary-item .count {
+          font-size: 24px;
+          font-weight: bold;
+        }
+        .pass { color: #28a745; }
+        .warning { color: #ffc107; }
+        .fail { color: #dc3545; }
+        .info { color: #17a2b8; }
+        
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        th, td {
+          padding: 12px 15px;
+          border-bottom: 1px solid #ddd;
+          text-align: left;
+        }
+        th {
+          background-color: #f8f9fa;
+        }
+        tr:hover {
+          background-color: #f1f1f1;
+        }
+        .issue {
+          margin-bottom: 10px;
+          padding: 10px;
+          border-left: 4px solid #ddd;
+        }
+        .critical { border-color: #dc3545; background-color: rgba(220, 53, 69, 0.1); }
+        .high { border-color: #fd7e14; background-color: rgba(253, 126, 20, 0.1); }
+        .medium { border-color: #ffc107; background-color: rgba(255, 193, 7, 0.1); }
+        .low { border-color: #17a2b8; background-color: rgba(23, 162, 184, 0.1); }
+      </style>
+    </head>
+    <body>
+      <h1>AssetWise 测试报告</h1>
+      <p>生成时间: 2025/8/5 21:09:27</p>
+      
+      <div class="summary">
+        <div class="summary-item">
+          <div class="count total">57</div>
+          <div>总测试</div>
+        </div>
+        <div class="summary-item">
+          <div class="count pass">16</div>
+          <div>通过</div>
+        </div>
+        <div class="summary-item">
+          <div class="count warning">36</div>
+          <div>警告</div>
+        </div>
+        <div class="summary-item">
+          <div class="count fail">2</div>
+          <div>失败</div>
+        </div>
+        <div class="summary-item">
+          <div class="count info">3</div>
+          <div>信息</div>
+        </div>
+      </div>
+      
+      <h2>测试结果摘要</h2>
+    
+        <h3>安全</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>测试</th>
+              <th>状态</th>
+              <th>信息</th>
+            </tr>
+          </thead>
+          <tbody>
+      
+          <tr>
+            <td>认证实现</td>
+            <td class="fail">失败</td>
+            <td>未检测到强认证机制</td>
+          </tr>
+        
+          <tr>
+            <td>密码策略</td>
+            <td class="warning">警告</td>
+            <td>未检测到密码策略实现</td>
+          </tr>
+        
+          <tr>
+            <td>多因素认证</td>
+            <td class="warning">警告</td>
+            <td>未检测到多因素认证支持</td>
+          </tr>
+        
+          <tr>
+            <td>会话管理</td>
+            <td class="warning">警告</td>
+            <td>未检测到会话管理实现</td>
+          </tr>
+        
+          <tr>
+            <td>数据验证</td>
+            <td class="fail">失败</td>
+            <td>未检测到输入数据验证</td>
+          </tr>
+        
+          <tr>
+            <td>硬编码密钥</td>
+            <td class="pass">通过</td>
+            <td>未检测到硬编码密钥</td>
+          </tr>
+        
+          <tr>
+            <td>敏感数据存储</td>
+            <td class="warning">警告</td>
+            <td>未检测到敏感数据的安全存储机制</td>
+          </tr>
+        
+          <tr>
+            <td>CSRF防护</td>
+            <td class="warning">警告</td>
+            <td>未检测到CSRF防护机制</td>
+          </tr>
+        
+          <tr>
+            <td>XSS防护</td>
+            <td class="pass">通过</td>
+            <td>实现了XSS防护或未使用危险的HTML插入</td>
+          </tr>
+        
+          <tr>
+            <td>SQL注入防护</td>
+            <td class="pass">通过</td>
+            <td>未检测到原始SQL查询或使用了ORM</td>
+          </tr>
+        
+          <tr>
+            <td>安全存储</td>
+            <td class="warning">警告</td>
+            <td>未检测到客户端安全存储机制</td>
+          </tr>
+        
+          <tr>
+            <td>安全通信</td>
+            <td class="warning">警告</td>
+            <td>未检测到HTTPS通信</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      
+        <h3>性能</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>测试</th>
+              <th>状态</th>
+              <th>信息</th>
+            </tr>
+          </thead>
+          <tbody>
+      
+          <tr>
+            <td>包大小</td>
+            <td class="pass">通过</td>
+            <td>未检测到明显的大型依赖包</td>
+          </tr>
+        
+          <tr>
+            <td>懒加载</td>
+            <td class="warning">警告</td>
+            <td>未检测到组件懒加载</td>
+          </tr>
+        
+          <tr>
+            <td>记忆化</td>
+            <td class="warning">警告</td>
+            <td>未检测到组件或计算记忆化</td>
+          </tr>
+        
+          <tr>
+            <td>列表虚拟化</td>
+            <td class="warning">警告</td>
+            <td>未检测到列表虚拟化</td>
+          </tr>
+        
+          <tr>
+            <td>条件渲染</td>
+            <td class="info">信息</td>
+            <td>未检测到明确的条件渲染</td>
+          </tr>
+        
+          <tr>
+            <td>数据缓存</td>
+            <td class="warning">警告</td>
+            <td>未检测到数据缓存</td>
+          </tr>
+        
+          <tr>
+            <td>数据分页</td>
+            <td class="warning">警告</td>
+            <td>未检测到数据分页</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      
+        <h3>桌面功能</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>测试</th>
+              <th>状态</th>
+              <th>信息</th>
+            </tr>
+          </thead>
+          <tbody>
+      
+          <tr>
+            <td>文件系统访问</td>
+            <td class="warning">警告</td>
+            <td>桌面端可能不支持文件系统访问</td>
+          </tr>
+        
+          <tr>
+            <td>对话框</td>
+            <td class="warning">警告</td>
+            <td>桌面端可能不支持原生对话框</td>
+          </tr>
+        
+          <tr>
+            <td>剪贴板</td>
+            <td class="warning">警告</td>
+            <td>桌面端可能不支持剪贴板操作</td>
+          </tr>
+        
+          <tr>
+            <td>离线支持</td>
+            <td class="warning">警告</td>
+            <td>桌面端可能不支持离线操作</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      
+        <h3>配置</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>测试</th>
+              <th>状态</th>
+              <th>信息</th>
+            </tr>
+          </thead>
+          <tbody>
+      
+          <tr>
+            <td>Tauri基本配置</td>
+            <td class="warning">警告</td>
+            <td>Tauri配置可能不完整</td>
+          </tr>
+        
+          <tr>
+            <td>安全配置</td>
+            <td class="warning">警告</td>
+            <td>未找到安全配置部分</td>
+          </tr>
+        
+          <tr>
+            <td>权限配置</td>
+            <td class="warning">警告</td>
+            <td>未找到权限配置部分</td>
+          </tr>
+        
+          <tr>
+            <td>Tauri依赖</td>
+            <td class="pass">通过</td>
+            <td>已安装Tauri依赖</td>
+          </tr>
+        
+          <tr>
+            <td>React依赖</td>
+            <td class="pass">通过</td>
+            <td>已安装React依赖</td>
+          </tr>
+        
+          <tr>
+            <td>Next.js依赖</td>
+            <td class="pass">通过</td>
+            <td>已安装Next.js依赖</td>
+          </tr>
+        
+          <tr>
+            <td>Supabase依赖</td>
+            <td class="pass">通过</td>
+            <td>已安装Supabase依赖</td>
+          </tr>
+        
+          <tr>
+            <td>测试依赖</td>
+            <td class="pass">通过</td>
+            <td>已安装测试依赖</td>
+          </tr>
+        
+          <tr>
+            <td>环境变量文件</td>
+            <td class="pass">通过</td>
+            <td>存在环境变量文件</td>
+          </tr>
+        
+          <tr>
+            <td>Supabase环境变量</td>
+            <td class="warning">警告</td>
+            <td>未配置Supabase环境变量</td>
+          </tr>
+        
+          <tr>
+            <td>环境变量安全</td>
+            <td class="pass">通过</td>
+            <td>环境变量文件已在.gitignore中排除</td>
+          </tr>
+        
+          <tr>
+            <td>Tauri构建脚本</td>
+            <td class="warning">警告</td>
+            <td>未配置Tauri构建脚本</td>
+          </tr>
+        
+          <tr>
+            <td>Tauri开发脚本</td>
+            <td class="warning">警告</td>
+            <td>未配置Tauri开发脚本</td>
+          </tr>
+        
+          <tr>
+            <td>测试脚本</td>
+            <td class="pass">通过</td>
+            <td>配置了测试脚本</td>
+          </tr>
+        
+          <tr>
+            <td>Next.js配置</td>
+            <td class="pass">通过</td>
+            <td>存在Next.js配置文件</td>
+          </tr>
+        
+          <tr>
+            <td>TypeScript配置</td>
+            <td class="pass">通过</td>
+            <td>存在TypeScript配置文件</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      
+        <h3>代码质量</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>测试</th>
+              <th>状态</th>
+              <th>信息</th>
+            </tr>
+          </thead>
+          <tbody>
+      
+          <tr>
+            <td>TypeScript严格模式</td>
+            <td class="pass">通过</td>
+            <td>启用了TypeScript严格模式</td>
+          </tr>
+        
+          <tr>
+            <td>类型定义</td>
+            <td class="info">信息</td>
+            <td>项目可能缺少类型定义文件</td>
+          </tr>
+        
+          <tr>
+            <td>any类型使用</td>
+            <td class="pass">通过</td>
+            <td>未检测到any类型的使用</td>
+          </tr>
+        
+          <tr>
+            <td>异常捕获</td>
+            <td class="warning">警告</td>
+            <td>未检测到try-catch异常捕获</td>
+          </tr>
+        
+          <tr>
+            <td>错误边界</td>
+            <td class="warning">警告</td>
+            <td>未检测到React错误边界</td>
+          </tr>
+        
+          <tr>
+            <td>错误日志</td>
+            <td class="warning">警告</td>
+            <td>未检测到错误日志记录</td>
+          </tr>
+        
+          <tr>
+            <td>目录结构</td>
+            <td class="warning">警告</td>
+            <td>缺少一些标准目录: components, pages, lib, utils, hooks, styles</td>
+          </tr>
+        
+          <tr>
+            <td>组件复用</td>
+            <td class="warning">警告</td>
+            <td>未检测到明显的组件复用</td>
+          </tr>
+        
+          <tr>
+            <td>Rust代码</td>
+            <td class="info">信息</td>
+            <td>未找到Rust代码文件</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      
+        <h3>通信</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>测试</th>
+              <th>状态</th>
+              <th>信息</th>
+            </tr>
+          </thead>
+          <tbody>
+      
+          <tr>
+            <td>Tauri前端调用</td>
+            <td class="warning">警告</td>
+            <td>未检测到前端Tauri命令调用</td>
+          </tr>
+        
+          <tr>
+            <td>Tauri后端命令</td>
+            <td class="warning">警告</td>
+            <td>未检测到后端Tauri命令定义</td>
+          </tr>
+        
+          <tr>
+            <td>事件监听</td>
+            <td class="warning">警告</td>
+            <td>未检测到前端事件监听</td>
+          </tr>
+        
+          <tr>
+            <td>事件发送</td>
+            <td class="warning">警告</td>
+            <td>未检测到后端事件发送</td>
+          </tr>
+        
+          <tr>
+            <td>HTTP请求</td>
+            <td class="warning">警告</td>
+            <td>未检测到HTTP请求</td>
+          </tr>
+        
+          <tr>
+            <td>Supabase</td>
+            <td class="warning">警告</td>
+            <td>未检测到Supabase客户端使用</td>
+          </tr>
+        
+          <tr>
+            <td>状态管理</td>
+            <td class="warning">警告</td>
+            <td>未检测到状态管理</td>
+          </tr>
+        
+          <tr>
+            <td>本地存储</td>
+            <td class="warning">警告</td>
+            <td>未检测到本地存储</td>
+          </tr>
+        
+          <tr>
+            <td>数据获取</td>
+            <td class="warning">警告</td>
+            <td>未检测到React Query或SWR</td>
+          </tr>
+        
+          </tbody>
+        </table>
+      
+        <h2>安全问题详情</h2>
+      
+          <div class="issue high">
+            <h3>认证实现</h3>
+            <p><strong>严重性:</strong> high</p>
+            <p><strong>描述:</strong> 未检测到强认证机制</p>
+            <p><strong>建议:</strong> 实现或使用成熟的认证库如Supabase Auth</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>密码策略</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到密码策略实现</p>
+            <p><strong>建议:</strong> 实现密码强度检查和复杂度要求</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>多因素认证</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到多因素认证支持</p>
+            <p><strong>建议:</strong> 考虑添加多因素认证以增强安全性</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>会话管理</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到会话管理实现</p>
+            <p><strong>建议:</strong> 实现会话超时和失效机制</p>
+          </div>
+        
+          <div class="issue high">
+            <h3>数据验证</h3>
+            <p><strong>严重性:</strong> high</p>
+            <p><strong>描述:</strong> 未检测到输入数据验证</p>
+            <p><strong>建议:</strong> 使用验证库如Zod、Yup或Joi验证所有输入数据</p>
+          </div>
+        
+          <div class="issue high">
+            <h3>敏感数据存储</h3>
+            <p><strong>严重性:</strong> high</p>
+            <p><strong>描述:</strong> 未检测到敏感数据的安全存储机制</p>
+            <p><strong>建议:</strong> 使用加密存储敏感数据</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>CSRF防护</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到CSRF防护机制</p>
+            <p><strong>建议:</strong> 实现CSRF令牌验证</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>安全存储</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到客户端安全存储机制</p>
+            <p><strong>建议:</strong> 加密敏感数据后再存储到本地存储</p>
+          </div>
+        
+          <div class="issue high">
+            <h3>安全通信</h3>
+            <p><strong>严重性:</strong> high</p>
+            <p><strong>描述:</strong> 未检测到HTTPS通信</p>
+            <p><strong>建议:</strong> 确保所有API通信使用HTTPS</p>
+          </div>
+        
+        <h2>性能问题详情</h2>
+      
+          <div class="issue medium">
+            <h3>懒加载</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到组件懒加载</p>
+            <p><strong>建议:</strong> 对大型组件或路由使用React.lazy或动态导入</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>记忆化</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到组件或计算记忆化</p>
+            <p><strong>建议:</strong> 对复杂组件使用React.memo，对昂贵计算使用useMemo，对回调函数使用useCallback</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>列表虚拟化</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到列表虚拟化</p>
+            <p><strong>建议:</strong> 对长列表使用react-window或react-virtualized</p>
+          </div>
+        
+          <div class="issue low">
+            <h3>条件渲染</h3>
+            <p><strong>严重性:</strong> low</p>
+            <p><strong>描述:</strong> 未检测到明确的条件渲染</p>
+            <p><strong>建议:</strong> 使用条件渲染减少不必要的DOM更新</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>数据缓存</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到数据缓存</p>
+            <p><strong>建议:</strong> 使用SWR或React Query进行数据缓存</p>
+          </div>
+        
+          <div class="issue medium">
+            <h3>数据分页</h3>
+            <p><strong>严重性:</strong> medium</p>
+            <p><strong>描述:</strong> 未检测到数据分页</p>
+            <p><strong>建议:</strong> 对大型数据集实现分页加载</p>
+          </div>
+        
+      <h2>结论和建议</h2>
+      <p>基于测试结果，我们提出以下建议：</p>
+      <ul>
+        <li>优先修复所有严重和高风险的安全问题</li>
+        <li>解决性能瓶颈，特别是数据加载和渲染优化</li>
+        <li>完善桌面端功能，确保跨平台兼容性</li>
+        <li>增强数据验证和输入检查</li>
+        <li>实施更全面的错误处理和日志记录</li>
+      </ul>
+      
+      <p>下一步建议：</p>
+      <ul>
+        <li>进行端到端测试验证修复后的功能</li>
+        <li>执行负载测试评估系统在高负载下的表现</li>
+        <li>进行用户验收测试确保满足业务需求</li>
+      </ul>
+    </body>
+    </html>
+    
