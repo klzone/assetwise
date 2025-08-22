@@ -162,7 +162,7 @@ export default function AssetList() {
 
   // 格式化百分比
   const formatPercentage = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+    return `${(value || 0) >= 0 ? '+' : ''}${(value || 0).toFixed(2)}%`
   }
 
   // 获取资产类型标签颜色

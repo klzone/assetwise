@@ -823,4 +823,5 @@ class PortfolioService {
   }
 }
 
+export { PortfolioService };
 export const portfolioService = new PortfolioService();

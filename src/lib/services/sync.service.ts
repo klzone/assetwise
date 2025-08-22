@@ -34,6 +34,8 @@ export class SyncService {
   }
 
   private loadLastSyncTime(): void {
+    if (typeof window === 'undefined') return;
+    
     const stored = localStorage.getItem('assetwise_last_sync');
     if (stored) {
       this.lastSyncTime = new Date(stored);
@@ -42,11 +44,16 @@ export class SyncService {
 
   private saveLastSyncTime(): void {
     this.lastSyncTime = new Date();
-    localStorage.setItem('assetwise_last_sync', this.lastSyncTime.toISOString());
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('assetwise_last_sync', this.lastSyncTime.toISOString());
+    }
   }
 
   // 设置自动同步
   private setupAutoSync(): void {
+    // 仅在客户端环境设置事件监听器
+    if (typeof window === 'undefined') return;
+    
     // 监听网络状态变化
     window.addEventListener('online', () => {
       console.log('网络连接恢复，准备自动同步');
@@ -111,7 +118,7 @@ export class SyncService {
       };
 
       // 如果是强制同步，清除最后同步时间
-      if (options.forceSync) {
+      if (options.forceSync && typeof window !== 'undefined') {
         localStorage.removeItem('assetwise_last_sync');
       }
 
@@ -259,12 +266,14 @@ export class SyncService {
       const backupId = `backup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // 保存到本地存储（临时方案）
-      localStorage.setItem(`assetwise_backup_${backupId}`, JSON.stringify({
-        id: backupId,
-        created_at: new Date().toISOString(),
-        data: backupData,
-        device_id: localStorageService.getDeviceId()
-      }));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`assetwise_backup_${backupId}`, JSON.stringify({
+          id: backupId,
+          created_at: new Date().toISOString(),
+          data: backupData,
+          device_id: localStorageService.getDeviceId()
+        }));
+      }
 
       return {
         success: true,
@@ -293,6 +302,10 @@ export class SyncService {
       }
 
       // 从本地存储获取备份（临时方案）
+      if (typeof window === 'undefined') {
+        throw new Error('服务端环境不支持数据恢复');
+      }
+      
       const backupData = localStorage.getItem(`assetwise_backup_${backupId}`);
       if (!backupData) {
         throw new Error('备份不存在');

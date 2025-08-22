@@ -28,17 +28,8 @@ const STOCK_CODES = {
 // 获取新浪财经实时数据
 export async function fetchSinaFinanceData(): Promise<MarketData[]> {
   try {
-    // 构建新浪财经API URL
-    const codes = Object.values(STOCK_CODES).join(',')
-    const url = `https://hq.sinajs.cn/list=${codes}`
-    
-    // 使用JSONP方式获取数据（避免CORS问题）
-    const response = await fetch(url, {
-      method: 'GET',
-      mode: 'no-cors', // 注意：这会限制响应处理
-    })
-    
-    // 由于CORS限制，我们使用备用方案：模拟实时数据
+    // 直接使用模拟数据，避免网络请求失败
+    // 在生产环境中，应该通过后端API代理获取真实数据
     return generateMockMarketData()
     
   } catch (error) {
@@ -53,7 +44,12 @@ function generateMockMarketData(): MarketData[] {
     { name: '上证', code: 'SH000001', basePrice: 3200, baseName: '上证指数' },
     { name: '深证', code: 'SZ399001', basePrice: 12400, baseName: '深证成指' },
     { name: '恒指', code: 'HSI', basePrice: 18800, baseName: '恒生指数' },
-    { name: '纳指', code: 'NASDAQ', basePrice: 15200, baseName: '纳斯达克' }
+    { name: '沪指', code: 'SH000300', basePrice: 3600, baseName: '沪深300' },
+    { name: '创业', code: 'SZ399006', basePrice: 2200, baseName: '创业板指' },
+    { name: '科创', code: 'SH000688', basePrice: 1200, baseName: '科创50' },
+    { name: '农产', code: 'AGRI', basePrice: 950, baseName: '农产品指数' },
+    { name: '工业', code: 'INDU', basePrice: 1800, baseName: '工业金属' },
+    { name: '商品', code: 'COMM', basePrice: 2100, baseName: '商品期货' }
   ]
   
   return baseData.map(item => {
@@ -157,9 +153,12 @@ export function formatPercent(num: number): string {
 
 // 获取颜色类名
 export function getColorClass(isUp: boolean, type: 'text' | 'bg' = 'text'): string {
+  // 中文习惯：涨是红色(destructive)，跌是绿色(success)
+  // 英文习惯：涨是绿色(success)，跌是红色(destructive)
+  // 这里我们使用中文习惯
   if (type === 'text') {
-    return isUp ? 'text-success' : 'text-destructive'
+    return isUp ? 'text-destructive' : 'text-success'
   } else {
-    return isUp ? 'bg-success/10' : 'bg-destructive/10'
+    return isUp ? 'bg-destructive/10' : 'bg-success/10'
   }
 }

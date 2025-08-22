@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useLocale } from '@/contexts/locale-context'
 
 export interface AssetData {
   id: string
@@ -46,6 +47,8 @@ export interface AssetData {
   allocation: number
   lastUpdated: string
   riskLevel: 'low' | 'medium' | 'high'
+  isDeleted?: boolean
+  deletedAt?: string
 }
 
 interface AssetCardProps {
@@ -53,15 +56,26 @@ interface AssetCardProps {
   onView?: (id: string) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
+  onClick?: (id: string) => void
   className?: string
 }
 
-export function AssetCard({ asset, onView, onEdit, onDelete, className }: AssetCardProps) {
+export function AssetCard({ asset, onView, onEdit, onDelete, onClick, className }: AssetCardProps) {
+  const { formatCurrency, formatPercent, getProfitLossColorClass } = useLocale()
+  
   const isProfitable = asset.profitLoss >= 0
   const isDayPositive = asset.dayChange >= 0
   
-  const profitLossColor = isProfitable ? 'text-success' : 'text-destructive'
-  const dayChangeColor = isDayPositive ? 'text-success' : 'text-destructive'
+  const profitLossColor = getProfitLossColorClass(asset.profitLoss)
+  const dayChangeColor = getProfitLossColorClass(asset.dayChange)
+
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick(asset.id)
+    } else if (onView) {
+      onView(asset.id)
+    }
+  }
   
   const riskColors = {
     low: 'bg-success/10 text-success border-success/20',
@@ -76,7 +90,10 @@ export function AssetCard({ asset, onView, onEdit, onDelete, className }: AssetC
   }
 
   return (
-    <Card className={`modern-card-hover group ${className}`}>
+    <Card 
+      className={`modern-card-hover group cursor-pointer ${className}`}
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -86,13 +103,13 @@ export function AssetCard({ asset, onView, onEdit, onDelete, className }: AssetC
                 {asset.symbol.slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h3 className="font-semibold text-base leading-none">{asset.name}</h3>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-base leading-none truncate">{asset.name}</h3>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm text-muted-foreground">{asset.symbol}</span>
+                <span className="text-sm text-muted-foreground truncate">{asset.symbol}</span>
                 <Badge 
                   variant="outline" 
-                  className={`text-xs ${riskColors[asset.riskLevel]}`}
+                  className={`text-xs shrink-0 ${riskColors[asset.riskLevel]}`}
                 >
                   {riskLabels[asset.riskLevel]}
                 </Badge>
@@ -105,23 +122,24 @@ export function AssetCard({ asset, onView, onEdit, onDelete, className }: AssetC
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => onView?.(asset.id)}>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView?.(asset.id); }}>
                 <Eye className="h-4 w-4 mr-2" />
                 查看详情
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onEdit?.(asset.id)}>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit?.(asset.id); }}>
                 <Edit className="h-4 w-4 mr-2" />
                 编辑资产
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={() => onDelete?.(asset.id)}
+                onClick={(e) => { e.stopPropagation(); onDelete?.(asset.id); }}
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -134,61 +152,73 @@ export function AssetCard({ asset, onView, onEdit, onDelete, className }: AssetC
 
       <CardContent className="space-y-4">
         {/* 价格信息 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1">当前价格</p>
-            <p className="text-lg font-bold">¥{asset.currentPrice.toLocaleString()}</p>
+            <p className="text-lg font-bold truncate" title={formatCurrency(asset.currentPrice)}>
+              {formatCurrency(asset.currentPrice)}
+            </p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1">今日变化</p>
-            <div className={`flex items-center gap-1 ${dayChangeColor}`}>
+            <div className={`flex items-center gap-1 ${dayChangeColor} min-w-0`}>
               {isDayPositive ? (
-                <ArrowUpRight className="h-3 w-3" />
+                <ArrowUpRight className="h-3 w-3 shrink-0" />
               ) : (
-                <ArrowDownRight className="h-3 w-3" />
+                <ArrowDownRight className="h-3 w-3 shrink-0" />
               )}
-              <span className="text-sm font-medium">
-                {isDayPositive ? '+' : ''}¥{asset.dayChange.toLocaleString()}
-              </span>
-              <span className="text-xs">
-                ({isDayPositive ? '+' : ''}{asset.dayChangePercent.toFixed(2)}%)
-              </span>
+              <div className="min-w-0 flex flex-col">
+                <span className="text-sm font-medium truncate" title={`${isDayPositive ? '+' : ''}${formatCurrency(asset.dayChange)}`}>
+                  {isDayPositive ? '+' : ''}{formatCurrency(asset.dayChange)}
+                </span>
+                <span className="text-xs truncate" title={`(${formatPercent(asset.dayChangePercent)})`}>
+                  ({formatPercent(asset.dayChangePercent)})
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* 持仓信息 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1">持仓数量</p>
-            <p className="text-sm font-medium">{asset.quantity.toLocaleString()} 股</p>
+            <p className="text-sm font-medium truncate" title={`${asset.quantity.toLocaleString()} 股`}>
+              {asset.quantity.toLocaleString()} 股
+            </p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1">持仓成本</p>
-            <p className="text-sm font-medium">¥{asset.purchasePrice.toLocaleString()}</p>
+            <p className="text-sm font-medium truncate" title={formatCurrency(asset.purchasePrice)}>
+              {formatCurrency(asset.purchasePrice)}
+            </p>
           </div>
         </div>
 
-        {/* 收益信息 */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">总价值</span>
-            <span className="text-sm font-semibold">¥{asset.totalValue.toLocaleString()}</span>
+        {/* 总价值和盈亏 */}
+        <div className="space-y-3 mb-4">
+          <div className="flex justify-between items-center min-w-0">
+            <span className="text-xs text-muted-foreground shrink-0">总价值</span>
+            <span className="text-sm font-bold truncate ml-2" title={formatCurrency(asset.totalValue)}>
+              {formatCurrency(asset.totalValue)}
+            </span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">盈亏</span>
-            <div className={`flex items-center gap-1 ${profitLossColor}`}>
+          <div className="flex justify-between items-center min-w-0">
+            <span className="text-xs text-muted-foreground shrink-0">盈亏</span>
+            <div className={`flex items-center gap-1 ${profitLossColor} min-w-0 ml-2`}>
               {isProfitable ? (
-                <TrendingUp className="h-3 w-3" />
+                <TrendingUp className="h-3 w-3 shrink-0" />
               ) : (
-                <TrendingDown className="h-3 w-3" />
+                <TrendingDown className="h-3 w-3 shrink-0" />
               )}
-              <span className="text-sm font-medium">
-                {isProfitable ? '+' : ''}¥{asset.profitLoss.toLocaleString()}
-              </span>
-              <span className="text-xs">
-                ({isProfitable ? '+' : ''}{asset.profitLossPercent.toFixed(2)}%)
-              </span>
+              <div className="min-w-0 flex flex-col items-end">
+                <span className="text-sm font-medium truncate" title={`${isProfitable ? '+' : ''}${formatCurrency(asset.profitLoss)}`}>
+                  {isProfitable ? '+' : ''}{formatCurrency(asset.profitLoss)}
+                </span>
+                <span className="text-xs truncate" title={`(${formatPercent(asset.profitLossPercent)})`}>
+                  ({formatPercent(asset.profitLossPercent)})
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -197,7 +227,7 @@ export function AssetCard({ asset, onView, onEdit, onDelete, className }: AssetC
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">配置占比</span>
-            <span className="text-xs font-medium">{asset.allocation.toFixed(1)}%</span>
+    <span className="text-xs font-medium">{(asset.allocation || 0).toFixed(1)}%</span>
           </div>
           <Progress value={asset.allocation} className="h-1.5" />
         </div>
@@ -223,10 +253,11 @@ interface AssetGridProps {
   onView?: (id: string) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
+  onClick?: (id: string) => void
   className?: string
 }
 
-export function AssetGrid({ assets, onView, onEdit, onDelete, className }: AssetGridProps) {
+export function AssetGrid({ assets, onView, onEdit, onDelete, onClick, className }: AssetGridProps) {
   return (
     <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 ${className}`}>
       {assets.map((asset) => (
@@ -236,6 +267,7 @@ export function AssetGrid({ assets, onView, onEdit, onDelete, className }: Asset
           onView={onView}
           onEdit={onEdit}
           onDelete={onDelete}
+          onClick={onClick}
         />
       ))}
     </div>

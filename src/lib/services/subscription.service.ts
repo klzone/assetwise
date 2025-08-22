@@ -123,11 +123,12 @@ export class SubscriptionService {
   }
 
   // 验证功能权限
-  async hasFeatureAccess(feature: 'sync' | 'realtime' | 'conflict_resolution' | 'version_history'): Promise<boolean> {
+  async hasFeatureAccess(feature: 'sync' | 'cloud_sync' | 'realtime' | 'conflict_resolution' | 'version_history'): Promise<boolean> {
     const limits = await this.getSubscriptionLimits();
     
     switch (feature) {
       case 'sync':
+      case 'cloud_sync':
         return limits.tier !== 'free';
       case 'realtime':
         return limits.realtime_sync;
@@ -366,7 +367,7 @@ export const subscriptionService = new SubscriptionService();
 // 导出便捷函数
 export const getSubscriptionTier = () => subscriptionService.getSubscriptionTier();
 export const getSubscriptionLimits = () => subscriptionService.getSubscriptionLimits();
-export const hasFeatureAccess = (feature: 'sync' | 'realtime' | 'conflict_resolution' | 'version_history') => 
+export const hasFeatureAccess = (feature: 'sync' | 'cloud_sync' | 'realtime' | 'conflict_resolution' | 'version_history') => 
   subscriptionService.hasFeatureAccess(feature);
 export const checkStorageLimit = (additionalMB?: number) => 
   subscriptionService.checkStorageLimit(additionalMB);

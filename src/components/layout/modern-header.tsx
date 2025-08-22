@@ -83,7 +83,7 @@ const pageTitles: Record<string, { title: string; subtitle?: string; breadcrumb?
 
 export function ModernHeader({ className, onMobileMenuToggle, isCollapsed, onToggleCollapse }: ModernHeaderProps) {
   const pathname = usePathname()
-  const pageInfo = pageTitles[pathname] || { title: '页面', breadcrumb: ['首页'] }
+  const pageInfo = pageTitles[pathname || '/'] || { title: '页面', breadcrumb: ['首页'] }
   
   // 市场数据状态
   const [marketData, setMarketData] = useState<MarketData[]>([])
@@ -107,17 +107,16 @@ export function ModernHeader({ className, onMobileMenuToggle, isCollapsed, onTog
     setIsClient(true)
   }, [])
   
-  // 初始化和定时更新市场数据
+  // 初始化市场数据（移除定时更新以提升性能）
   useEffect(() => {
     if (!isClient) return
     
-    // 立即获取一次数据
+    // 只在初始化时获取一次数据
     fetchMarketData()
     
-    // 每30秒更新一次数据
-    const interval = setInterval(fetchMarketData, 30000)
-    
-    return () => clearInterval(interval)
+    // 移除定时更新，改为手动刷新
+    // const interval = setInterval(fetchMarketData, 30000)
+    // return () => clearInterval(interval)
   }, [isClient])
   
   // 手动刷新数据
@@ -486,7 +485,7 @@ export function ModernHeader({ className, onMobileMenuToggle, isCollapsed, onTog
                 className="h-8 w-8 p-0 hover:bg-primary/10"
               >
                 <Avatar className="h-7 w-7">
-                  <AvatarImage src="/avatar.jpg" alt="用户头像" />
+                  <AvatarImage src="" alt="用户头像" />
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                     用户
                   </AvatarFallback>

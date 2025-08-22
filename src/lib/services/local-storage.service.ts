@@ -58,6 +58,11 @@ export class LocalStorageService {
 
   // 设备ID管理
   private getOrCreateDeviceId(): string {
+    if (typeof window === 'undefined') {
+      // 服务端环境，返回临时ID
+      return `server_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
     let deviceId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
     if (!deviceId) {
       deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -72,6 +77,11 @@ export class LocalStorageService {
 
   // 存储初始化
   private initializeStorage(): void {
+    // 仅在客户端环境初始化存储
+    if (typeof window === 'undefined') {
+      return;
+    }
+    
     // 检查并初始化各个数据类型的存储
     Object.values(STORAGE_KEYS).forEach(key => {
       if (!localStorage.getItem(key)) {
@@ -108,6 +118,10 @@ export class LocalStorageService {
 
   async saveData<T extends DataItem>(dataType: DataType, items: T[]): Promise<void> {
     try {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
       const key = this.getStorageKey(dataType);
       const processedItems = items.map(item => this.processDataItem(item));
       
@@ -213,6 +227,10 @@ export class LocalStorageService {
   // 同步队列管理
   async addToSyncQueue(dataType: DataType, dataId: string, operation: 'create' | 'update' | 'delete'): Promise<void> {
     try {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
       const queue = this.getSyncQueue();
       const existingIndex = queue.findIndex(item => 
         item.data_type === dataType && item.data_id === dataId
@@ -246,6 +264,10 @@ export class LocalStorageService {
 
   getSyncQueue(): any[] {
     try {
+      if (typeof window === 'undefined') {
+        return [];
+      }
+      
       const stored = localStorage.getItem(STORAGE_KEYS.SYNC_QUEUE);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
@@ -255,10 +277,16 @@ export class LocalStorageService {
   }
 
   async clearSyncQueue(): Promise<void> {
+    if (typeof window === 'undefined') {
+      return;
+    }
     localStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify([]));
   }
 
   async removeFromSyncQueue(itemId: string): Promise<void> {
+    if (typeof window === 'undefined') {
+      return;
+    }
     const queue = this.getSyncQueue();
     const filteredQueue = queue.filter(item => item.id !== itemId);
     localStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(filteredQueue));
@@ -267,6 +295,16 @@ export class LocalStorageService {
   // 存储统计
   async getStorageStats(): Promise<StorageStats> {
     try {
+      if (typeof window === 'undefined') {
+        return {
+          total_items: 0,
+          total_size_mb: 0,
+          versions_count: 0,
+          pending_sync_count: 0,
+          last_cleanup_at: new Date().toISOString()
+        };
+      }
+
       let totalItems = 0;
       let totalSizeBytes = 0;
       let pendingSyncCount = 0;
@@ -313,6 +351,10 @@ export class LocalStorageService {
   // 数据清理
   async cleanupOldVersions(maxVersionsPerItem: number = this.maxVersionsPerItem): Promise<void> {
     try {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
       const versions = this.getAllVersions();
       const groupedVersions = new Map<string, DataVersion[]>();
 
@@ -344,6 +386,10 @@ export class LocalStorageService {
 
   async clearAllData(): Promise<void> {
     try {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
       Object.values(STORAGE_KEYS).forEach(key => {
         if (key !== STORAGE_KEYS.DEVICE_ID) {
           localStorage.removeItem(key);
@@ -417,6 +463,10 @@ export class LocalStorageService {
 
   private getAllVersions(): DataVersion[] {
     try {
+      if (typeof window === 'undefined') {
+        return [];
+      }
+      
       const stored = localStorage.getItem(STORAGE_KEYS.VERSIONS);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
@@ -427,6 +477,10 @@ export class LocalStorageService {
 
   private async saveVersion(version: DataVersion): Promise<void> {
     try {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
       const versions = this.getAllVersions();
       versions.push(version);
       localStorage.setItem(STORAGE_KEYS.VERSIONS, JSON.stringify(versions));

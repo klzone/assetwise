@@ -4,7 +4,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { DataType, SyncOperation, SyncConflict, SyncResult } from '../types/sync.types';
+import { DataType, SyncConflict, SyncResult } from '../types/sync.types';
 import { localStorageService, DataItem } from './local-storage.service';
 import { subscriptionService } from './subscription.service';
 
@@ -43,7 +43,7 @@ export interface SyncProgress {
 
 export class SupabaseSyncService {
   private supabase: SupabaseClient;
-  private isOnline: boolean = navigator.onLine;
+  private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private syncInProgress: boolean = false;
   private abortController: AbortController | null = null;
 
@@ -54,6 +54,9 @@ export class SupabaseSyncService {
 
   // 网络状态监听
   private setupNetworkListeners(): void {
+    // 仅在客户端环境设置事件监听器
+    if (typeof window === 'undefined') return;
+    
     window.addEventListener('online', () => {
       this.isOnline = true;
       console.log('网络连接已恢复');
@@ -195,14 +198,28 @@ export class SupabaseSyncService {
           const localData = await localStorageService.getDataById(dataType, queueItem.data_id);
           
           if (queueItem.operation === 'delete') {
-            // 删除操作
-            await this.supabase
+            // 删除操作 - 先检查远程是否存在
+            const { data: existingData } = await this.supabase
               .from(tableName)
-              .delete()
-              .eq('id', queueItem.data_id);
+              .select('id')
+              .eq('id', queueItem.data_id)
+              .single();
+            
+            if (existingData) {
+              // 远程存在，执行删除
+              const { error: deleteError } = await this.supabase
+                .from(tableName)
+                .delete()
+                .eq('id', queueItem.data_id);
+              
+              if (deleteError) {
+                throw new Error(`删除远程数据失败: ${deleteError.message}`);
+              }
+            }
             
             result.synced_count++;
             await localStorageService.removeFromSyncQueue(queueItem.id);
+            console.log(`已同步删除操作: ${dataType}:${queueItem.data_id}`);
 
           } else if (localData) {
             // 创建或更新操作
@@ -287,7 +304,7 @@ export class SupabaseSyncService {
       const { data: remoteData, error } = await query;
 
       if (error) {
-        throw error;
+        throw new Error(error.message || '查询远程数据失败');
       }
 
       if (!remoteData || remoteData.length === 0) {
@@ -350,15 +367,40 @@ export class SupabaseSyncService {
     if (localData.checksum !== remoteData.checksum && 
         Math.abs(localTime - remoteTime) < 5 * 60 * 1000) {
       
+      // 创建版本对象
+      const localVersion = {
+        id: `local_${localData.id}_${Date.now()}`,
+        user_id: 'current_user',
+        data_type: 'assets' as DataType,
+        data_id: localData.id,
+        version: localData.version,
+        data: localData,
+        checksum: localData.checksum,
+        device_id: localStorageService.getDeviceId(),
+        created_at: localData.created_at,
+        is_deleted: localData.is_deleted
+      };
+
+      const remoteVersion = {
+        id: `remote_${remoteData.id}_${Date.now()}`,
+        user_id: 'current_user',
+        data_type: 'assets' as DataType,
+        data_id: remoteData.id,
+        version: remoteData.version,
+        data: remoteData,
+        checksum: remoteData.checksum,
+        device_id: 'remote',
+        created_at: remoteData.created_at,
+        is_deleted: remoteData.is_deleted || false
+      };
+      
       return {
         id: `conflict_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        data_type: localData.data_type || 'unknown' as DataType,
+        session_id: 'current_session',
+        data_type: 'assets' as DataType,
         data_id: localData.id,
-        local_data: localData,
-        remote_data: remoteData,
-        conflict_type: 'data_mismatch',
-        detected_at: new Date().toISOString(),
-        resolved: false
+        local_version: localVersion,
+        remote_version: remoteVersion
       };
     }
 
@@ -373,22 +415,22 @@ export class SupabaseSyncService {
     
     switch (strategy) {
       case 'local_wins':
-        return { resolved_data: conflict.local_data };
+        return { resolved_data: conflict.local_version.data };
         
       case 'remote_wins':
-        return { resolved_data: conflict.remote_data };
+        return { resolved_data: conflict.remote_version.data };
         
       case 'merge':
         // 简单的合并策略：使用最新的更新时间
-        const localTime = new Date(conflict.local_data.updated_at).getTime();
-        const remoteTime = new Date(conflict.remote_data.updated_at).getTime();
+        const localTime = new Date(conflict.local_version.data.updated_at).getTime();
+        const remoteTime = new Date(conflict.remote_version.data.updated_at).getTime();
         
         const mergedData = {
-          ...conflict.local_data,
-          ...conflict.remote_data,
+          ...conflict.local_version.data,
+          ...conflict.remote_version.data,
           updated_at: localTime > remoteTime ? 
-            conflict.local_data.updated_at : 
-            conflict.remote_data.updated_at
+            conflict.local_version.data.updated_at : 
+            conflict.remote_version.data.updated_at
         };
         
         return { resolved_data: mergedData };

@@ -93,6 +93,19 @@ export interface SyncStats {
   average_sync_time: number;
 }
 
+// 同步结果
+export interface SyncResult {
+  success: boolean;
+  synced_count: number;
+  conflict_count: number;
+  error_count: number;
+  conflicts: SyncConflict[];
+  errors: string[];
+  started_at: string;
+  completed_at: string;
+  duration_ms: number;
+}
+
 // 订阅限制
 export interface SubscriptionLimits {
   tier: SubscriptionTier;

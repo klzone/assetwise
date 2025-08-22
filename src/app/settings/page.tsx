@@ -19,7 +19,8 @@ import {
   Download,
   Upload,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Cloud
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,8 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PageTransition, CardEnterAnimation, FadeInAnimation } from '@/components/ui/page-transition'
 import { useTheme } from 'next-themes'
+import { CloudDataDownloadDialog } from '@/components/sync/cloud-data-download-dialog'
+import { LocalDataUploadDialog } from '@/components/sync/local-data-upload-dialog'
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
@@ -626,6 +629,22 @@ export default function SettingsPage() {
                       </CardHeader>
                       <CardContent className="space-y-6">
                         <div className="space-y-4">
+                          <CloudDataDownloadDialog 
+                            trigger={
+                              <Button className="w-full" variant="outline">
+                                <Cloud className="h-4 w-4 mr-2" />
+                                下载云端数据
+                              </Button>
+                            }
+                          />
+                          <LocalDataUploadDialog 
+                            trigger={
+                              <Button className="w-full" variant="outline">
+                                <Upload className="h-4 w-4 mr-2" />
+                                上传本地数据
+                              </Button>
+                            }
+                          />
                           <Button className="w-full" variant="outline">
                             <Download className="h-4 w-4 mr-2" />
                             导出所有数据

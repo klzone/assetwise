@@ -53,11 +53,11 @@ const navigationItems: NavItem[] = [
     title: '资产管理',
     href: '/assets',
     icon: Wallet,
-    children: [
-      { title: '资产概览', href: '/assets', icon: PieChart },
-      { title: '投资组合', href: '/assets/portfolio', icon: Target },
-      { title: '资产分析', href: '/assets/analysis', icon: BarChart3 },
-    ]
+  },
+  {
+    title: '投资组合',
+    href: '/fund-portfolio',
+    icon: Target,
   },
   {
     title: '交易记录',
@@ -114,18 +114,23 @@ export function ModernSidebar({
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 1024)
       if (window.innerWidth < 1024) {
-        setIsCollapsed(false) // 移动端不使用折叠模式
+        // 移动端不使用折叠模式
+        if (onToggleCollapse && externalIsCollapsed) {
+          onToggleCollapse()
+        } else if (externalIsCollapsed === undefined) {
+          setInternalIsCollapsed(false)
+        }
       }
     }
 
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
-  }, [])
+  }, [onToggleCollapse, externalIsCollapsed])
 
   // 移动端路由变化时自动关闭侧边栏
   useEffect(() => {
-    if (isMobile && onMobileClose) {
+    if (isMobile && onMobileClose && pathname) {
       onMobileClose()
     }
   }, [pathname, isMobile, onMobileClose])
