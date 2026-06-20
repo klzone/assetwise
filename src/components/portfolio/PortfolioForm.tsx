@@ -27,10 +27,11 @@ import { portfolioService } from '@/lib/services/portfolio.service';
 import { cn } from '@/lib/utils';
 
 interface PortfolioFormProps {
-  userId: string;
+  userId?: string;
   portfolio?: Portfolio | null;
-  onSave: (portfolio: Portfolio) => void;
+  onSave?: (portfolio: Portfolio) => void;
   onCancel: () => void;
+  assets?: any[];
 }
 
 interface AssetAllocation {
@@ -49,10 +50,11 @@ const ASSET_TYPES = [
 ];
 
 export const PortfolioForm: React.FC<PortfolioFormProps> = ({
-  userId,
+  userId = 'user-1',
   portfolio,
   onSave,
-  onCancel
+  onCancel,
+  assets = []
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -173,7 +175,7 @@ export const PortfolioForm: React.FC<PortfolioFormProps> = ({
 
         const result = await portfolioService.updatePortfolio(portfolio.id, updateData);
         if (result.success && result.data) {
-          onSave(result.data);
+          onSave?.(result.data);
         } else {
           setError(result.error || '更新投资组合失败');
         }
@@ -191,7 +193,7 @@ export const PortfolioForm: React.FC<PortfolioFormProps> = ({
 
         const result = await portfolioService.createPortfolio(userId, createData);
         if (result.success && result.data) {
-          onSave(result.data);
+          onSave?.(result.data);
         } else {
           setError(result.error || '创建投资组合失败');
         }

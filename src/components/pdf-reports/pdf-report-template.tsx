@@ -202,8 +202,8 @@ export const PDFReportTemplate: React.FC<PDFReportTemplateProps> = ({
             <Text style={styles.label}>订阅类型:</Text>
             <Text style={styles.value}>
               {data.user.subscription_type === 'free' && '免费版'}
-              {data.user.subscription_type === 'pro' && '专业版'}
-              {data.user.subscription_type === 'premium' && '旗舰版'}
+              {data.user.subscription_type === 'professional' && '专业版'}
+              {data.user.subscription_type === 'flagship' && '旗舰版'}
             </Text>
           </View>
         </View>

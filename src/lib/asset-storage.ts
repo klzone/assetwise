@@ -111,6 +111,8 @@ export class AssetStorage {
     // 创建买入交易记录
     this.addTransaction({
       assetId: newAsset.id,
+      assetName: newAsset.name,
+      assetSymbol: newAsset.symbol,
       type: TransactionType.BUY,
       date: new Date(), // 今天的日期
       price: asset.purchasePrice,
@@ -197,8 +199,8 @@ export class AssetStorage {
       // 保存数据
       this.saveStorageData(data)
       
-      // 标记需要同步
-      this.markNeedsSync()
+      // 立即执行云端同步删除操作
+      this.syncDeletedAssetToCloud(id, asset.name)
       
       return true
     } catch (error) {
@@ -453,7 +455,7 @@ export class AssetStorage {
     }
   }
 
-  // 从云端同步数据（真实 Supabase 实现）
+  // 从云端拉取数据（仅在用户主动操作时执行）
   async syncFromCloud(): Promise<AssetData[]> {
     try {
       const { createClient } = await import('@supabase/supabase-js')
@@ -468,12 +470,7 @@ export class AssetStorage {
         return this.getLocalAssets()
       }
 
-      // 先将本地数据同步到云端，确保不丢失本地新增的数据
-      const localAssets = this.getLocalAssets()
-      if (localAssets.length > 0) {
-        console.log('先同步本地数据到云端...')
-        await this.syncToCloud(localAssets)
-      }
+      console.log('📥 用户主动从云端拉取数据，将覆盖本地数据...')
 
       // 从云端获取资产数据
       const { data: cloudAssets, error } = await supabase
@@ -487,117 +484,105 @@ export class AssetStorage {
         return this.getLocalAssets()
       }
 
-      // 如果云端没有数据，保持本地数据不变
+      // 如果云端没有数据，返回空数组
       if (!cloudAssets || cloudAssets.length === 0) {
-        console.log('云端暂无数据，保持本地数据')
-        return localAssets
+        console.log('云端无数据，清空本地数据')
+        this.saveLocalAssets([])
+        this.clearLocalChanges()
+        return []
       }
 
-      // 转换数据格式 - 修复字段映射
-      const convertedAssets: AssetData[] = cloudAssets.map((asset: any) => ({
-        id: asset.id,
-        name: asset.name,
-        symbol: asset.symbol,
-        logo: '', // 数据库中没有logo字段
-        category: asset.type, // type -> category
-        currentPrice: parseFloat(asset.current_price) || 0,
-        purchasePrice: parseFloat(asset.average_cost) || 0, // average_cost -> purchasePrice
-        quantity: parseFloat(asset.quantity) || 0,
-        totalValue: parseFloat(asset.market_value) || 0, // market_value -> totalValue
-        totalCost: parseFloat(asset.average_cost) * parseFloat(asset.quantity) || 0, // 计算总成本
-        profitLoss: parseFloat(asset.profit_loss) || 0,
-        profitLossPercent: parseFloat(asset.profit_loss_percentage) || 0, // profit_loss_percentage -> profitLossPercent
-        dayChange: parseFloat(asset.day_change) || 0,
-        dayChangePercent: parseFloat(asset.day_change_rate) || 0, // day_change_rate -> dayChangePercent
-        allocation: parseFloat(asset.weight) || 0, // weight -> allocation
-        lastUpdated: new Date(asset.last_updated || asset.updated_at).toLocaleString('zh-CN'),
-        riskLevel: 'medium' // 数据库中没有risk_level字段
-      }))
-
-      // 合并本地和云端数据，避免数据丢失
-      const mergedAssets = this.mergeAssets(localAssets, convertedAssets)
+      // 转换云端数据格式
+      const convertedAssets = this.convertCloudAssetsToLocal(cloudAssets)
       
-      // 保存合并后的数据到本地存储
-      this.saveLocalAssets(mergedAssets)
+      // 直接使用云端数据覆盖本地数据（用户主动拉取）
+      this.saveLocalAssets(convertedAssets)
+      this.clearLocalChanges()
       
-      console.log('从云端同步数据完成:', mergedAssets.length, '项资产')
-      return mergedAssets
+      console.log('✅ 从云端拉取数据完成:', convertedAssets.length, '项资产')
+      return convertedAssets
     } catch (error) {
-      console.error('从云端同步失败:', error)
+      console.error('❌ 从云端拉取失败:', error)
       return this.getLocalAssets()
     }
   }
 
-  // 合并本地和云端资产数据，避免重复
-  private mergeAssets(localAssets: AssetData[], cloudAssets: AssetData[]): AssetData[] {
+  // 转换云端数据格式到本地格式
+  private convertCloudAssetsToLocal(cloudAssets: any[]): AssetData[] {
+    return cloudAssets.map((asset: any) => ({
+      id: asset.id,
+      name: asset.name,
+      symbol: asset.symbol,
+      logo: '', // 数据库中没有logo字段
+      category: asset.type, // type -> category
+      currentPrice: parseFloat(asset.current_price) || 0,
+      purchasePrice: parseFloat(asset.average_cost) || 0, // average_cost -> purchasePrice
+      quantity: parseFloat(asset.quantity) || 0,
+      totalValue: parseFloat(asset.total_value) || parseFloat(asset.market_value) || 0, // 使用正确的字段名
+      totalCost: parseFloat(asset.average_cost) * parseFloat(asset.quantity) || 0, // 计算总成本
+      profitLoss: parseFloat(asset.profit_loss) || 0,
+      profitLossPercent: parseFloat(asset.profit_loss_percentage) || 0, // profit_loss_percentage -> profitLossPercent
+      dayChange: parseFloat(asset.day_change) || 0,
+      dayChangePercent: parseFloat(asset.day_change_rate) || 0, // day_change_rate -> dayChangePercent
+      allocation: parseFloat(asset.weight) || 0, // weight -> allocation
+      lastUpdated: new Date(asset.last_updated || asset.updated_at).toLocaleString('zh-CN'),
+      riskLevel: 'medium' // 数据库中没有risk_level字段
+    }))
+  }
+
+  // 智能合并本地和云端资产数据
+  private intelligentMergeAssets(localAssets: AssetData[], cloudAssets: AssetData[]): AssetData[] {
     const merged = new Map<string, AssetData>()
+    const processedIds = new Set<string>()
     
-    // 先添加云端数据
-    cloudAssets.forEach(asset => {
-      // 使用资产的唯一标识符（名称+符号）来检测重复
-      const uniqueKey = `${asset.name}-${asset.symbol}`.toLowerCase()
-      
-      // 检查是否已存在相同的资产
-      let existingKey = null
-      for (const [key, existingAsset] of merged.entries()) {
-        const existingUniqueKey = `${existingAsset.name}-${existingAsset.symbol}`.toLowerCase()
-        if (existingUniqueKey === uniqueKey) {
-          existingKey = key
-          break
-        }
-      }
-      
-      if (existingKey) {
-        // 如果存在重复，合并数量和成本
-        const existing = merged.get(existingKey)!
-        existing.quantity += asset.quantity
-        existing.totalCost += asset.totalCost
-        existing.totalValue = existing.quantity * existing.currentPrice
-        existing.profitLoss = existing.totalValue - existing.totalCost
-        existing.profitLossPercent = existing.totalCost > 0 ? (existing.profitLoss / existing.totalCost) * 100 : 0
-        existing.purchasePrice = existing.totalCost / existing.quantity // 重新计算平均成本
-      } else {
-        merged.set(asset.id, asset)
-      }
+    // 首先处理云端数据
+    cloudAssets.forEach(cloudAsset => {
+      merged.set(cloudAsset.id, cloudAsset)
+      processedIds.add(cloudAsset.id)
     })
     
-    // 再添加本地数据，避免重复
+    // 然后处理本地数据
     localAssets.forEach(localAsset => {
-      const uniqueKey = `${localAsset.name}-${localAsset.symbol}`.toLowerCase()
-      
-      // 检查是否已存在相同的资产
-      let existingEntry = null
-      for (const [key, existingAsset] of merged.entries()) {
-        const existingUniqueKey = `${existingAsset.name}-${existingAsset.symbol}`.toLowerCase()
-        if (existingUniqueKey === uniqueKey) {
-          existingEntry = { key, asset: existingAsset }
-          break
-        }
-      }
-      
-      if (existingEntry) {
-        // 比较更新时间，选择更新的版本，或合并数据
+      if (processedIds.has(localAsset.id)) {
+        // 如果ID相同，比较更新时间
+        const cloudAsset = merged.get(localAsset.id)!
         const localTime = new Date(localAsset.lastUpdated).getTime()
-        const cloudTime = new Date(existingEntry.asset.lastUpdated).getTime()
+        const cloudTime = new Date(cloudAsset.lastUpdated).getTime()
         
+        // 如果本地数据更新，使用本地数据
         if (localTime > cloudTime) {
-          // 本地数据更新，替换云端数据
-          merged.set(existingEntry.key, localAsset)
-        } else {
-          // 云端数据更新，但可能需要合并数量
-          const existing = existingEntry.asset
-          if (Math.abs(existing.quantity - localAsset.quantity) > 0.001) {
-            // 数量不同，可能需要合并
-            console.log(`检测到资产 ${localAsset.name} 数量差异，本地: ${localAsset.quantity}, 云端: ${existing.quantity}`)
-          }
+          console.log(`使用本地更新的资产数据: ${localAsset.name}`)
+          merged.set(localAsset.id, localAsset)
         }
       } else {
-        // 本地有但云端没有的资产，直接添加
-        merged.set(localAsset.id, localAsset)
+        // 检查是否有相同名称和符号的资产（可能是重复资产）
+        const duplicateAsset = Array.from(merged.values()).find(asset => 
+          asset.name === localAsset.name && asset.symbol === localAsset.symbol
+        )
+        
+        if (duplicateAsset) {
+          console.log(`发现重复资产，合并数据: ${localAsset.name}`)
+          // 合并数量和成本
+          duplicateAsset.quantity += localAsset.quantity
+          duplicateAsset.totalCost += localAsset.totalCost
+          duplicateAsset.totalValue = duplicateAsset.quantity * duplicateAsset.currentPrice
+          duplicateAsset.profitLoss = duplicateAsset.totalValue - duplicateAsset.totalCost
+          duplicateAsset.profitLossPercent = duplicateAsset.totalCost > 0 ? 
+            (duplicateAsset.profitLoss / duplicateAsset.totalCost) * 100 : 0
+          duplicateAsset.purchasePrice = duplicateAsset.totalCost / duplicateAsset.quantity
+        } else {
+          // 本地独有的资产，直接添加
+          merged.set(localAsset.id, localAsset)
+        }
       }
     })
     
     return Array.from(merged.values())
+  }
+
+  // 合并本地和云端资产数据，避免重复（保留原方法以兼容）
+  private mergeAssets(localAssets: AssetData[], cloudAssets: AssetData[]): AssetData[] {
+    return this.intelligentMergeAssets(localAssets, cloudAssets)
   }
 
   // 获取同步状态
@@ -692,6 +677,65 @@ export class AssetStorage {
     return transactions.filter(transaction => transaction.assetId === assetId)
   }
 
+  // 删除交易记录
+  deleteTransaction(transactionId: string): boolean {
+    try {
+      const transactions = this.getTransactions()
+      const transactionIndex = transactions.findIndex(t => t.id === transactionId)
+      
+      if (transactionIndex === -1) {
+        console.error('未找到要删除的交易记录:', transactionId)
+        return false
+      }
+      
+      // 删除交易记录
+      const deletedTransaction = transactions.splice(transactionIndex, 1)[0]
+      this.saveTransactions(transactions)
+      
+      // 标记需要同步
+      this.markNeedsSync()
+      
+      console.log('删除交易记录成功:', deletedTransaction.id)
+      return true
+    } catch (error) {
+      console.error('删除交易记录失败:', error)
+      return false
+    }
+  }
+
+  // 更新交易记录
+  updateTransaction(transactionId: string, updates: Partial<Transaction>): boolean {
+    try {
+      const transactions = this.getTransactions()
+      const transactionIndex = transactions.findIndex(t => t.id === transactionId)
+      
+      if (transactionIndex === -1) {
+        console.error('未找到要更新的交易记录:', transactionId)
+        return false
+      }
+      
+      // 更新交易记录
+      transactions[transactionIndex] = {
+        ...transactions[transactionIndex],
+        ...updates,
+        // 保持原有的ID和创建时间
+        id: transactions[transactionIndex].id,
+        createdAt: transactions[transactionIndex].createdAt
+      }
+      
+      this.saveTransactions(transactions)
+      
+      // 标记需要同步
+      this.markNeedsSync()
+      
+      console.log('更新交易记录成功:', transactionId)
+      return true
+    } catch (error) {
+      console.error('更新交易记录失败:', error)
+      return false
+    }
+  }
+
   // 清理重复的交易记录
   cleanupDuplicateTransactions(): void {
     const transactions = this.getTransactions()
@@ -768,62 +812,109 @@ export class AssetStorage {
 
   // 卖出资产
   sellAsset(assetId: string, sellData: SellTransactionData): boolean {
-    const assets = this.getLocalAssets()
-    const assetIndex = assets.findIndex(asset => asset.id === assetId)
-    
-    if (assetIndex === -1) return false
-    
-    const asset = assets[assetIndex]
-    
-    // 验证卖出数量不超过持有数量
-    if (sellData.sellQuantity > asset.quantity) {
-      console.error('卖出数量超过持有数量')
-      return false
-    }
-    
-    // 计算剩余数量
-    const remainingQuantity = asset.quantity - sellData.sellQuantity
-    
-    // 计算卖出总额和盈亏
-    const sellTotal = sellData.sellPrice * sellData.sellQuantity
-    const costPerUnit = asset.totalCost / asset.quantity
-    const costTotal = costPerUnit * sellData.sellQuantity
-    const profit = sellTotal - costTotal
-    const profitPercent = costTotal > 0 ? (profit / costTotal) * 100 : 0
-    
-    // 添加卖出交易记录
-    this.addTransaction({
-      assetId: asset.id,
-      type: TransactionType.SELL,
-      date: sellData.sellDate,
-      price: sellData.sellPrice,
-      quantity: sellData.sellQuantity,
-      totalAmount: sellTotal,
-      notes: sellData.notes
-    })
-    
-    if (remainingQuantity > 0) {
-      // 计算剩余资产的成本（按比例分配）
-      const remainingCost = costPerUnit * remainingQuantity
-      const remainingValue = remainingQuantity * asset.currentPrice
-      const remainingProfitLoss = remainingValue - remainingCost
-      const remainingProfitLossPercent = remainingCost > 0 ? (remainingProfitLoss / remainingCost) * 100 : 0
+    try {
+      const assets = this.getLocalAssets()
+      const assetIndex = assets.findIndex(asset => asset.id === assetId)
       
-      // 更新资产数量和相关数据
-      this.updateAsset(assetId, {
-        quantity: remainingQuantity,
-        totalValue: remainingValue,
-        totalCost: remainingCost,
-        profitLoss: remainingProfitLoss,
-        profitLossPercent: remainingProfitLossPercent
+      if (assetIndex === -1) {
+        console.error('未找到要卖出的资产:', assetId)
+        return false
+      }
+      
+      const asset = assets[assetIndex]
+      
+      // 验证卖出数量不超过持有数量
+      if (sellData.sellQuantity > asset.quantity) {
+        console.error('卖出数量超过持有数量:', sellData.sellQuantity, '>', asset.quantity)
+        return false
+      }
+      
+      // 计算剩余数量
+      const remainingQuantity = asset.quantity - sellData.sellQuantity
+      
+      // 计算卖出总额和盈亏
+      const sellTotal = sellData.sellPrice * sellData.sellQuantity
+      const costPerUnit = asset.totalCost / asset.quantity
+      const costTotal = costPerUnit * sellData.sellQuantity
+      const profit = sellTotal - costTotal
+      const profitPercent = costTotal > 0 ? (profit / costTotal) * 100 : 0
+      
+      console.log(`卖出资产 ${asset.name}:`, {
+        sellQuantity: sellData.sellQuantity,
+        sellPrice: sellData.sellPrice,
+        sellTotal,
+        profit,
+        profitPercent,
+        remainingQuantity
       })
       
-      console.log(`卖出后剩余: 数量=${remainingQuantity}, 成本=${remainingCost}, 价值=${remainingValue}, 盈亏=${remainingProfitLoss}`)
+      // 先添加卖出交易记录，确保记录被创建
+      const transaction = this.addTransaction({
+        assetId: asset.id,
+        assetName: asset.name,
+        assetSymbol: asset.symbol,
+        type: TransactionType.SELL,
+        date: sellData.sellDate,
+        price: sellData.sellPrice,
+        quantity: sellData.sellQuantity,
+        totalAmount: sellTotal,
+        profit: profit,
+        profitRate: profitPercent,
+        notes: sellData.notes || `卖出 ${asset.name} ${sellData.sellQuantity} 股，单价 ¥${sellData.sellPrice}`
+      })
+      
+      console.log('创建卖出交易记录:', transaction)
+      
+      if (remainingQuantity > 0) {
+        // 计算剩余资产的成本（按比例分配）
+        const remainingCost = costPerUnit * remainingQuantity
+        const remainingValue = remainingQuantity * asset.currentPrice
+        const remainingProfitLoss = remainingValue - remainingCost
+        const remainingProfitLossPercent = remainingCost > 0 ? (remainingProfitLoss / remainingCost) * 100 : 0
+        
+        // 更新资产数量和相关数据
+        const updateSuccess = this.updateAsset(assetId, {
+          quantity: remainingQuantity,
+          totalValue: remainingValue,
+          totalCost: remainingCost,
+          profitLoss: remainingProfitLoss,
+          profitLossPercent: remainingProfitLossPercent,
+          lastUpdated: new Date().toLocaleString('zh-CN')
+        })
+        
+        if (!updateSuccess) {
+          console.error('更新资产失败')
+          return false
+        }
+        
+        console.log(`卖出后剩余: 数量=${remainingQuantity}, 成本=${remainingCost.toFixed(2)}, 价值=${remainingValue.toFixed(2)}, 盈亏=${remainingProfitLoss.toFixed(2)}`)
+      } else {
+        // 如果全部卖出，则软删除资产
+        const deleteSuccess = this.deleteAsset(assetId)
+        if (!deleteSuccess) {
+          console.error('删除资产失败')
+          return false
+        }
+        console.log(`全部卖出，资产 ${asset.name} 已删除`)
+      }
+      
+      // 立即同步卖出操作到云端
+      this.syncSellOperationToCloud(assetId, asset.name, sellData, remainingQuantity > 0)
+      
+      // 验证交易记录是否正确创建
+      const allTransactions = this.getTransactions()
+      const sellTransactions = allTransactions.filter(t => 
+        t.assetId === assetId && 
+        t.type === TransactionType.SELL &&
+        Math.abs(new Date(t.date).getTime() - new Date(sellData.sellDate).getTime()) < 60000 // 1分钟内
+      )
+      
+      console.log(`验证交易记录: 找到 ${sellTransactions.length} 条相关卖出记录`)
+      
       return true
-    } else {
-      // 如果全部卖出，则删除资产
-      this.deleteAsset(assetId)
-      return true
+    } catch (error) {
+      console.error('卖出资产时发生错误:', error)
+      return false
     }
   }
 
@@ -853,14 +944,208 @@ export class AssetStorage {
     }
   }
 
+  // 立即同步删除的资产到云端
+  private async syncDeletedAssetToCloud(assetId: string, assetName: string): Promise<void> {
+    try {
+      console.log(`🗑️ 立即同步删除资产到云端: ${assetName} (${assetId})`);
+      
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      
+      // 获取当前用户
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.error('用户未登录，无法同步删除:', userError)
+        this.markNeedsSync() // 标记稍后同步
+        return
+      }
+
+      // 立即从云端删除资产
+      const { error: deleteError } = await supabase
+        .from('assets')
+        .delete()
+        .eq('id', assetId)
+        .eq('user_id', user.id)
+      
+      if (deleteError) {
+        console.error(`云端删除资产失败 ${assetName}:`, deleteError)
+        this.markNeedsSync() // 标记稍后重试
+      } else {
+        console.log(`✅ 成功从云端删除资产: ${assetName}`)
+      }
+    } catch (error) {
+      console.error(`同步删除资产到云端失败 ${assetName}:`, error)
+      this.markNeedsSync() // 标记稍后重试
+    }
+  }
+
+  // 立即同步卖出操作到云端
+  private async syncSellOperationToCloud(
+    assetId: string, 
+    assetName: string, 
+    sellData: SellTransactionData, 
+    hasRemainingQuantity: boolean
+  ): Promise<void> {
+    try {
+      console.log(`💰 立即同步卖出操作到云端: ${assetName} (${assetId})`);
+      
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      
+      // 获取当前用户
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.error('用户未登录，无法同步卖出操作:', userError)
+        this.markNeedsSync()
+        return
+      }
+
+      if (hasRemainingQuantity) {
+        // 部分卖出：更新云端资产数据
+        const updatedAsset = this.getLocalAssets().find(asset => asset.id === assetId)
+        if (updatedAsset) {
+          const assetData = this.convertLocalAssetToCloudFormat(updatedAsset, user.id)
+          
+          const { error: updateError } = await supabase
+            .from('assets')
+            .update(assetData)
+            .eq('id', assetId)
+            .eq('user_id', user.id)
+          
+          if (updateError) {
+            console.error(`更新云端资产失败 ${assetName}:`, updateError)
+            this.markNeedsSync()
+          } else {
+            console.log(`✅ 成功更新云端资产: ${assetName}`)
+          }
+        }
+      } else {
+        // 全部卖出：删除云端资产
+        await this.syncDeletedAssetToCloud(assetId, assetName)
+      }
+
+      // 同步交易记录到云端
+      await this.syncTransactionToCloud(assetId, sellData, user.id)
+
+    } catch (error) {
+      console.error(`同步卖出操作到云端失败 ${assetName}:`, error)
+      this.markNeedsSync()
+    }
+  }
+
+  // 转换本地资产格式到云端格式
+  private convertLocalAssetToCloudFormat(localAsset: any, userId: string): any {
+    const mapCategoryToType = (category: string): string => {
+      const typeMap: { [key: string]: string } = {
+        '股票': 'stock', '科技股': 'stock', '金融股': 'stock', '消费股': 'stock',
+        '虚拟货币': 'crypto', '比特币': 'crypto', '以太坊': 'crypto',
+        '基金': 'fund', '债券': 'bond', '大宗商品': 'commodity'
+      };
+      return typeMap[category] || 'stock';
+    };
+
+    return {
+      id: localAsset.id,
+      user_id: userId,
+      name: localAsset.name || '',
+      symbol: localAsset.symbol || '',
+      type: mapCategoryToType(localAsset.category),
+      current_price: localAsset.currentPrice || 0,
+      average_cost: localAsset.purchasePrice || 0,
+      quantity: localAsset.quantity || 0,
+      total_value: localAsset.totalValue || 0,
+      profit_loss: localAsset.profitLoss || 0,
+      profit_loss_percentage: localAsset.profitLossPercent || 0,
+      last_updated: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+
+  // 同步交易记录到云端
+  private async syncTransactionToCloud(assetId: string, sellData: SellTransactionData, userId: string): Promise<void> {
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+
+      // 获取对应的资产信息
+      const asset = this.getAllAssets().find(a => a.id === assetId)
+      if (!asset) return
+
+      const transactionData = {
+        id: `transaction_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        user_id: userId,
+        type: 'sell' as const,
+        symbol: asset.symbol,
+        name: asset.name,
+        quantity: sellData.sellQuantity,
+        price: sellData.sellPrice,
+        amount: sellData.sellPrice * sellData.sellQuantity,
+        fee: 0,
+        tax: 0,
+        notes: sellData.notes || `卖出 ${asset.name}`,
+        transaction_date: new Date(sellData.sellDate).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert([transactionData])
+
+      if (transactionError) {
+        console.error('同步交易记录到云端失败:', transactionError)
+      } else {
+        console.log('✅ 成功同步交易记录到云端')
+      }
+    } catch (error) {
+      console.error('同步交易记录异常:', error)
+    }
+  }
+
   // 标记需要同步
   private markNeedsSync(): void {
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem(SYNC_KEY, '0') // 设置为0表示需要同步
+        // 设置当前时间戳，表示有本地更改需要同步
+        localStorage.setItem(SYNC_KEY, Date.now().toString())
+        localStorage.setItem('assetwise_local_changes', 'true')
       }
     } catch (error) {
       console.error('标记同步状态失败:', error)
+    }
+  }
+
+  // 检查是否有本地未同步的更改
+  hasLocalChanges(): boolean {
+    try {
+      if (typeof window !== 'undefined') {
+        const hasChanges = localStorage.getItem('assetwise_local_changes') === 'true'
+        const lastSync = parseInt(localStorage.getItem(SYNC_KEY) || '0')
+        const timeSinceLastSync = Date.now() - lastSync
+        
+        // 如果有标记的本地更改，或者最近5分钟内有操作，认为有本地更改
+        return hasChanges || timeSinceLastSync < 5 * 60 * 1000
+      }
+    } catch (error) {
+      console.error('检查本地更改状态失败:', error)
+    }
+    return false
+  }
+
+  // 清除本地更改标记
+  clearLocalChanges(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('assetwise_local_changes')
+      }
+    } catch (error) {
+      console.error('清除本地更改标记失败:', error)
     }
   }
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { getStoredSettings, type ColorConvention } from '@/lib/mvp-store'
 
 export type Locale = 'zh-CN' | 'en-US'
 
@@ -55,12 +56,26 @@ const LocaleContext = createContext<LocaleContextType | undefined>(undefined)
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [currentLocale, setCurrentLocale] = useState<Locale>('zh-CN')
+  const [colorConvention, setColorConvention] = useState<ColorConvention>('chinese')
 
   // 从localStorage加载语言设置
   useEffect(() => {
     const savedLocale = localStorage.getItem('assetwise_locale') as Locale
     if (savedLocale && localeConfigs[savedLocale]) {
       setCurrentLocale(savedLocale)
+    }
+  }, [])
+
+  useEffect(() => {
+    const loadSettings = () => setColorConvention(getStoredSettings().colorConvention)
+
+    loadSettings()
+    window.addEventListener('assetwise-settings-updated', loadSettings)
+    window.addEventListener('focus', loadSettings)
+
+    return () => {
+      window.removeEventListener('assetwise-settings-updated', loadSettings)
+      window.removeEventListener('focus', loadSettings)
     }
   }, [])
 
@@ -97,7 +112,7 @@ const formatPercent = (percent: number | undefined | null): string => {
   const getProfitLossColor = (value: number): string => {
     if (value === 0) return '#6b7280' // gray-500
     
-    if (config.redForUp) {
+    if (colorConvention === 'chinese') {
       // 中文习惯：红涨绿跌
       return value > 0 ? '#ef4444' : '#22c55e' // red-500 : green-500
     } else {
@@ -108,14 +123,14 @@ const formatPercent = (percent: number | undefined | null): string => {
 
   // 返回Tailwind CSS类名
   const getProfitLossColorClass = (value: number): string => {
-    if (value === 0) return 'text-gray-500'
+    if (value === 0) return 'text-muted-foreground'
     
-    if (config.redForUp) {
+    if (colorConvention === 'chinese') {
       // 中文习惯：红涨绿跌
-      return value > 0 ? 'text-red-500' : 'text-green-500'
+      return value > 0 ? 'text-destructive' : 'text-success'
     } else {
       // 英文习惯：绿涨红跌
-      return value > 0 ? 'text-green-500' : 'text-red-500'
+      return value > 0 ? 'text-success' : 'text-destructive'
     }
   }
 

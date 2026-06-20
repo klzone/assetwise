@@ -1,304 +1,153 @@
-'use client';
+"use client"
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
-import { 
-  PlusIcon, 
-  TrendingUpIcon, 
-  TrendingDownIcon, 
-  PieChartIcon,
-  BarChart3Icon,
-  AlertTriangleIcon,
-  RefreshCwIcon
-} from 'lucide-react';
-import { Portfolio, PortfolioAsset, RebalanceRecommendation } from '@/lib/types/portfolio.types';
-import { Asset } from '@/lib/types/data.types';
-import { PortfolioService } from '@/lib/services/portfolio.service';
-import { AssetStorage } from '@/lib/asset-storage';
-import { PortfolioForm } from '@/components/portfolio/PortfolioForm';
-import { PortfolioDetail } from '@/components/portfolio/PortfolioDetail';
-import { PortfolioAllocationChart } from '@/components/portfolio/PortfolioAllocationChart';
-import { PortfolioPerformanceChart } from '@/components/portfolio/PortfolioPerformanceChart';
-import { RebalanceRecommendations } from '@/components/portfolio/RebalanceRecommendations';
+import { useEffect, useState } from "react"
+import { PieChart, Plus, TrendingDown, TrendingUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { getChangeTextClass, getStoredSettings, type ColorConvention } from "@/lib/mvp-store"
+
+const portfolios = [
+  {
+    name: "核心资产组合",
+    goal: "长期稳健增长",
+    value: 186270,
+    returnRate: 8.6,
+    allocation: [
+      { name: "宽基指数", value: 46 },
+      { name: "红利资产", value: 22 },
+      { name: "债券和现金", value: 32 },
+    ],
+  },
+  {
+    name: "机会观察仓",
+    goal: "小仓位捕捉阶段性主题",
+    value: 42360,
+    returnRate: -1.8,
+    allocation: [
+      { name: "个股", value: 58 },
+      { name: "主题 ETF", value: 27 },
+      { name: "现金", value: 15 },
+    ],
+  },
+]
 
 export default function PortfolioPage() {
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-
-  const portfolioService = new PortfolioService();
-  const assetStorage = new AssetStorage();
+  const [colorConvention, setColorConvention] = useState<ColorConvention>("chinese")
+  const totalValue = portfolios.reduce((sum, item) => sum + item.value, 0)
+  const averageReturn =
+    portfolios.reduce((sum, item) => sum + item.returnRate, 0) / portfolios.length
+  const averageReturnClass = getChangeTextClass(averageReturn, colorConvention)
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const loadSettings = () => setColorConvention(getStoredSettings().colorConvention)
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      // 加载投资组合数据
-      const portfolioData = await portfolioService.getUserPortfolios('user-1');
-      setPortfolios(portfolioData);
+    loadSettings()
+    window.addEventListener("assetwise-settings-updated", loadSettings)
+    window.addEventListener("focus", loadSettings)
 
-      // 加载资产数据
-      const assetData = await assetStorage.getAllAssets();
-      setAssets(assetData);
-
-      // 如果有投资组合且没有选中的，选中第一个
-      if (portfolioData.length > 0 && !selectedPortfolio) {
-        setSelectedPortfolio(portfolioData[0]);
-      }
-    } catch (error) {
-      console.error('加载数据失败:', error);
-    } finally {
-      setLoading(false);
+    return () => {
+      window.removeEventListener("assetwise-settings-updated", loadSettings)
+      window.removeEventListener("focus", loadSettings)
     }
-  };
-
-  const handleCreatePortfolio = async (portfolioData: any) => {
-    try {
-      const result = await portfolioService.createPortfolio('user-1', portfolioData);
-      if (result.success && result.data) {
-        await loadData();
-        setSelectedPortfolio(result.data);
-        setShowCreateForm(false);
-      }
-    } catch (error) {
-      console.error('创建投资组合失败:', error);
-    }
-  };
-
-  const handleDeletePortfolio = async (portfolioId: string) => {
-    try {
-      const result = await portfolioService.deletePortfolio(portfolioId);
-      if (result.success) {
-        await loadData();
-        if (selectedPortfolio?.id === portfolioId) {
-          setSelectedPortfolio(portfolios.length > 1 ? portfolios[0] : null);
-        }
-      }
-    } catch (error) {
-      console.error('删除投资组合失败:', error);
-    }
-  };
-
-  const calculateTotalValue = () => {
-    return portfolios.reduce((sum, portfolio) => sum + portfolio.total_value, 0);
-  };
-
-  const calculateTotalReturn = () => {
-    const totalValue = calculateTotalValue();
-    if (totalValue === 0) return 0;
-    
-    const totalReturn = portfolios.reduce((sum, portfolio) => {
-      return sum + (portfolio.total_value * (portfolio.total_return_percentage || 0) / 100);
-    }, 0);
-    
-    return (totalReturn / totalValue) * 100;
-  };
-
-  const getBestPerformingPortfolio = () => {
-    if (portfolios.length === 0) return null;
-    return portfolios.reduce((best, current) => 
-      (current.total_return_percentage || 0) > (best.total_return_percentage || 0) ? current : best
-    );
-  };
-
-  const getWorstPerformingPortfolio = () => {
-    if (portfolios.length === 0) return null;
-    return portfolios.reduce((worst, current) => 
-      (current.total_return_percentage || 0) < (worst.total_return_percentage || 0) ? current : worst
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <RefreshCwIcon className="h-8 w-8 animate-spin" />
-          <span className="ml-2">加载中...</span>
-        </div>
-      </div>
-    );
-  }
+  }, [])
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* 页面标题和操作 */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">投资组合管理</h1>
-          <p className="text-muted-foreground mt-1">管理和分析您的投资组合</p>
-        </div>
-        <Button onClick={() => setShowCreateForm(true)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          创建投资组合
-        </Button>
-      </div>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_76%_8%,rgb(236_241_248)_0%,transparent_30%),linear-gradient(180deg,rgb(250_250_250)_0%,rgb(245_247_250)_100%)]">
+      <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-12 lg:py-7">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="label-tiny mb-2">Portfolio</p>
+            <h1 className="text-3xl font-semibold tracking-tight">投资组合</h1>
+          </div>
+          <Button className="gap-2 rounded-md bg-foreground text-background hover:bg-foreground/90">
+            <Plus className="h-4 w-4" />
+            新建组合
+          </Button>
+        </header>
 
-      {/* 总览卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">投资组合总数</CardTitle>
-            <PieChartIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{portfolios.length}</div>
-          </CardContent>
-        </Card>
+        <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+          <Metric title="组合总资产" value={`¥${totalValue.toLocaleString("zh-CN")}`} />
+          <Metric title="组合数量" value={String(portfolios.length)} />
+          <Metric
+            title="平均收益率"
+            value={`${averageReturn >= 0 ? "+" : ""}${averageReturn.toFixed(2)}%`}
+            valueClassName={averageReturnClass}
+          />
+        </section>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总资产价值</CardTitle>
-            <BarChart3Icon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">¥{calculateTotalValue().toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        <section className="grid gap-4 lg:grid-cols-2">
+          {portfolios.map((portfolio) => {
+            const returnClass = getChangeTextClass(portfolio.returnRate, colorConvention)
+            const ReturnIcon = portfolio.returnRate >= 0 ? TrendingUp : TrendingDown
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总收益率</CardTitle>
-            {calculateTotalReturn() >= 0 ? (
-              <TrendingUpIcon className="h-4 w-4 text-green-600" />
-            ) : (
-              <TrendingDownIcon className="h-4 w-4 text-red-600" />
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${calculateTotalReturn() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {calculateTotalReturn().toFixed(2)}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">最佳表现</CardTitle>
-            <TrendingUpIcon className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm font-medium">{getBestPerformingPortfolio()?.name || '无'}</div>
-            <div className="text-xs text-green-600">
-              +{getBestPerformingPortfolio()?.total_return_percentage?.toFixed(2) || 0}%
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 主要内容区域 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 投资组合列表 */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>我的投资组合</CardTitle>
-            <CardDescription>选择一个投资组合查看详情</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {portfolios.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <PieChartIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>还没有投资组合</p>
-                <p className="text-sm">点击上方按钮创建您的第一个投资组合</p>
-              </div>
-            ) : (
-              portfolios.map((portfolio) => (
-                <div
-                  key={portfolio.id}
-                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                    selectedPortfolio?.id === portfolio.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:bg-muted/50'
-                  }`}
-                  onClick={() => setSelectedPortfolio(portfolio)}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-medium">{portfolio.name}</h3>
-                    <Badge variant={portfolio.risk_level === 'high' ? 'destructive' : 
-                                  portfolio.risk_level === 'medium' ? 'default' : 'secondary'}>
-                      {portfolio.risk_level === 'high' ? '高风险' : 
-                       portfolio.risk_level === 'medium' ? '中风险' : '低风险'}
-                    </Badge>
+            return (
+              <Card key={portfolio.name} className="rounded-[1.15rem] border-white/80 bg-card/78 p-4 shadow-[0_18px_56px_rgb(15_23_42_/_0.075)] backdrop-blur-xl">
+                <CardContent className="space-y-5 p-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-lg font-semibold">{portfolio.name}</h2>
+                      <p className="mt-1.5 text-xs text-muted-foreground">{portfolio.goal}</p>
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-sm font-semibold ${returnClass}`}>
+                      <ReturnIcon className="h-4 w-4" />
+                      {portfolio.returnRate >= 0 ? "+" : ""}
+                      {portfolio.returnRate.toFixed(2)}%
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-3">{portfolio.description}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">¥{portfolio.total_value.toLocaleString()}</span>
-                    <span className={`text-sm font-medium ${
-                      (portfolio.total_return_percentage || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {(portfolio.total_return_percentage || 0) >= 0 ? '+' : ''}
-                      {(portfolio.total_return_percentage || 0).toFixed(2)}%
-                    </span>
+
+                  <div>
+                    <p className="label-tiny mb-2">当前市值</p>
+                    <p className="text-3xl font-semibold">¥{portfolio.value.toLocaleString("zh-CN")}</p>
                   </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
 
-        {/* 投资组合详情 */}
-        <div className="lg:col-span-2">
-          {selectedPortfolio ? (
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="overview">概览</TabsTrigger>
-                <TabsTrigger value="allocation">配置</TabsTrigger>
-                <TabsTrigger value="performance">业绩</TabsTrigger>
-                <TabsTrigger value="rebalance">再平衡</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-4">
-                <PortfolioDetail 
-                  portfolio={selectedPortfolio}
-                  assets={assets}
-                  onUpdate={loadData}
-                  onDelete={handleDeletePortfolio}
-                />
-              </TabsContent>
-
-              <TabsContent value="allocation" className="space-y-4">
-                <PortfolioAllocationChart portfolio={selectedPortfolio} />
-              </TabsContent>
-
-              <TabsContent value="performance" className="space-y-4">
-                <PortfolioPerformanceChart portfolio={selectedPortfolio} />
-              </TabsContent>
-
-              <TabsContent value="rebalance" className="space-y-4">
-                <RebalanceRecommendations portfolio={selectedPortfolio} />
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <Card>
-              <CardContent className="flex items-center justify-center h-64">
-                <div className="text-center text-muted-foreground">
-                  <PieChartIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>请选择一个投资组合查看详情</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                  <div className="space-y-3">
+                    {portfolio.allocation.map((item) => (
+                      <div key={item.name}>
+                        <div className="mb-2 flex items-center justify-between text-sm">
+                          <span>{item.name}</span>
+                          <span className="text-muted-foreground">{item.value}%</span>
+                        </div>
+                        <Progress value={item.value} />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </section>
       </div>
-
-      {/* 创建投资组合对话框 */}
-      {showCreateForm && (
-        <PortfolioForm
-          onSubmit={handleCreatePortfolio}
-          onCancel={() => setShowCreateForm(false)}
-          assets={assets}
-        />
-      )}
     </div>
-  );
+  )
+}
+
+function Metric({
+  title,
+  value,
+  tone,
+  valueClassName,
+}: {
+  title: string
+  value: string
+  tone?: "positive" | "negative"
+  valueClassName?: string
+}) {
+  const toneClass =
+    valueClassName ??
+    (tone === "positive"
+      ? "text-success"
+      : tone === "negative"
+        ? "text-destructive"
+        : "text-foreground")
+
+  return (
+    <div className="rounded-[1.15rem] border border-white/80 bg-card/78 p-4 shadow-[0_18px_56px_rgb(15_23_42_/_0.075)] backdrop-blur-xl">
+      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-xl bg-muted">
+        <PieChart className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <p className="label-tiny mb-2">{title}</p>
+      <p className={`text-2xl font-semibold sm:text-3xl ${toneClass}`}>{value}</p>
+    </div>
+  )
 }

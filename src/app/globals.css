@@ -2,618 +2,159 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
 :root {
-  /* === AssetWise 现代化设计系统 === */
-  
-  /* 基础色彩系统 - Glassmorphism Tech Blue */
-  --background: 250 250% 99%;
-  --background-secondary: 240 20% 97%;
-  --background-tertiary: 240 15% 95%;
-  --foreground: 215 25% 15%;
-  --foreground-secondary: 215 15% 35%;
-  --foreground-muted: 215 10% 55%;
-  
-  /* 卡片与表面 */
-  --card: 0 0% 100%;
-  --card-secondary: 240 20% 98%;
-  --card-foreground: 215 25% 15%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 215 25% 15%;
-  
-  /* 科技蓝主色调 */
-  --primary: 217 91% 60%;
-  --primary-hover: 217 91% 55%;
-  --primary-active: 217 91% 50%;
-  --primary-foreground: 0 0% 100%;
-  --primary-light: 217 91% 95%;
-  
-  /* 次要色彩 */
-  --secondary: 240 15% 95%;
-  --secondary-hover: 240 15% 90%;
-  --secondary-foreground: 215 25% 25%;
-  
-  /* 静音色彩 */
-  --muted: 240 15% 95%;
-  --muted-hover: 240 15% 90%;
-  --muted-foreground: 215 10% 55%;
-  
-  /* 强调色 - 电光青 */
-  --accent: 188 95% 46%;
-  --accent-hover: 188 95% 41%;
-  --accent-foreground: 0 0% 100%;
-  --accent-light: 188 95% 95%;
-  
-  /* 语义色彩 */
-  --info: 201 100% 50%;
-  --info-foreground: 0 0% 100%;
-  --info-light: 201 100% 95%;
-  
-  --success: 146 58% 45%;
-  --success-foreground: 0 0% 100%;
-  --success-light: 146 58% 95%;
-  
-  --warning: 38 92% 55%;
-  --warning-foreground: 0 0% 100%;
-  --warning-light: 38 92% 95%;
-  
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --destructive-light: 0 84% 95%;
-  
-  /* 边框与输入 */
-  --border: 240 15% 88%;
-  --border-hover: 240 15% 80%;
-  --input: 240 15% 95%;
-  --input-hover: 240 15% 90%;
-  --ring: 217 91% 60%;
-  
-  /* 毛玻璃效果 */
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.2);
-  --glass-shadow: rgba(0, 0, 0, 0.1);
-  
-  /* 阴影系统 */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  
-  /* 圆角系统 */
-  --radius-sm: 0.375rem;
-  --radius: 0.75rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
-  
-  /* 间距系统 */
-  --spacing-xs: 0.25rem;
-  --spacing-sm: 0.5rem;
-  --spacing-md: 1rem;
-  --spacing-lg: 1.5rem;
-  --spacing-xl: 2rem;
-  --spacing-2xl: 3rem;
-  
-  /* 响应式断点 */
-  --mobile-breakpoint: 640px;
-  --tablet-breakpoint: 768px;
-  --desktop-breakpoint: 1024px;
-  --large-breakpoint: 1280px;
-}
+  --background: 0 0% 98%;
+  --background-secondary: 0 0% 96%;
+  --background-tertiary: 240 5% 92%;
+  --foreground: 240 6% 4%;
+  --foreground-secondary: 240 5% 24%;
+  --foreground-muted: 240 4% 46%;
 
-.dark {
-  /* === 暗色主题 - 深蓝科技风 === */
-  
-  /* 基础色彩 */
-  --background: 222 84% 4%;
-  --background-secondary: 222 84% 6%;
-  --background-tertiary: 222 84% 8%;
-  --foreground: 210 40% 98%;
-  --foreground-secondary: 210 40% 85%;
-  --foreground-muted: 210 40% 65%;
-  
-  /* 卡片与表面 */
-  --card: 222 84% 6%;
-  --card-secondary: 222 84% 8%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 84% 6%;
-  --popover-foreground: 210 40% 98%;
-  
-  /* 科技蓝主色调 */
-  --primary: 217 91% 65%;
-  --primary-hover: 217 91% 70%;
-  --primary-active: 217 91% 75%;
-  --primary-foreground: 222 84% 4%;
-  --primary-light: 217 91% 15%;
-  
-  /* 次要色彩 */
-  --secondary: 217 33% 17%;
-  --secondary-hover: 217 33% 22%;
-  --secondary-foreground: 210 40% 98%;
-  
-  /* 静音色彩 */
-  --muted: 217 33% 17%;
-  --muted-hover: 217 33% 22%;
-  --muted-foreground: 210 40% 65%;
-  
-  /* 强调色 */
-  --accent: 188 95% 50%;
-  --accent-hover: 188 95% 55%;
-  --accent-foreground: 222 84% 4%;
-  --accent-light: 188 95% 15%;
-  
-  /* 语义色彩 */
-  --info: 201 100% 60%;
-  --info-foreground: 222 84% 4%;
-  --info-light: 201 100% 15%;
-  
-  --success: 146 54% 50%;
-  --success-foreground: 222 84% 4%;
-  --success-light: 146 54% 15%;
-  
-  --warning: 38 92% 65%;
-  --warning-foreground: 222 84% 4%;
-  --warning-light: 38 92% 15%;
-  
-  --destructive: 0 63% 50%;
-  --destructive-foreground: 210 40% 98%;
-  --destructive-light: 0 63% 15%;
-  
-  /* 边框与输入 */
-  --border: 217 33% 18%;
-  --border-hover: 217 33% 25%;
-  --input: 217 33% 17%;
-  --input-hover: 217 33% 22%;
-  --ring: 217 91% 65%;
-  
-  /* 毛玻璃效果 */
-  --glass-bg: rgba(15, 23, 42, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: rgba(0, 0, 0, 0.3);
-  
-  /* 阴影系统 */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  --card: 0 0% 100%;
+  --card-secondary: 0 0% 98%;
+  --card-foreground: 240 6% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 6% 4%;
+
+  --primary: 221 83% 53%;
+  --primary-hover: 221 83% 47%;
+  --primary-active: 221 83% 40%;
+  --primary-foreground: 0 0% 100%;
+  --primary-light: 221 83% 96%;
+
+  --secondary: 240 5% 96%;
+  --secondary-hover: 240 5% 92%;
+  --secondary-foreground: 240 6% 10%;
+
+  --muted: 240 5% 96%;
+  --muted-hover: 240 5% 92%;
+  --muted-foreground: 240 4% 46%;
+
+  --accent: 221 83% 96%;
+  --accent-hover: 221 83% 92%;
+  --accent-foreground: 221 83% 30%;
+
+  --success: 142 72% 35%;
+  --success-foreground: 0 0% 100%;
+  --success-light: 142 71% 96%;
+
+  --warning: 38 92% 46%;
+  --warning-foreground: 0 0% 100%;
+  --warning-light: 38 92% 96%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-light: 0 84% 97%;
+
+  --info: 211 100% 47%;
+  --info-foreground: 0 0% 100%;
+  --info-light: 211 100% 97%;
+
+  --border: 240 6% 90%;
+  --border-hover: 240 5% 78%;
+  --input: 240 6% 90%;
+  --input-hover: 240 5% 78%;
+  --ring: 221 83% 53%;
+
+  --radius: 6px;
+  --shadow: 0 1px 2px rgb(9 9 11 / 0.04), 0 1px 8px rgb(9 9 11 / 0.03);
+  --shadow-md: 0 10px 30px rgb(9 9 11 / 0.07);
 }
 
 * {
-  border-color: hsl(var(--border));
+  box-sizing: border-box;
+  scroll-behavior: smooth;
 }
 
 body {
-  color: hsl(var(--foreground));
   background: hsl(var(--background));
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  font-feature-settings: "rlig" 1, "calt" 1;
+  color: hsl(var(--foreground));
+  font-weight: 400;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
+  h1,
+  h2,
+  h3 {
+    letter-spacing: 0;
   }
-  
-  body {
-    min-height: 100vh;
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    transition: background-color 0.3s ease, color 0.3s ease;
+
+  .stat-huge {
+    @apply font-extralight leading-none;
+    font-size: clamp(3rem, 11vw, 6rem);
+    letter-spacing: 0;
   }
-  
-  /* 滚动条样式 */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+
+  .stat-large {
+    @apply text-4xl font-light leading-none md:text-6xl;
+    letter-spacing: 0;
   }
-  
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--muted));
-    border-radius: 3px;
+
+  .label-tiny {
+    @apply text-xs font-medium uppercase text-foreground-muted;
+    letter-spacing: 0.08em;
   }
-  
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 3px;
-    transition: background-color 0.2s ease;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
-  }
-  
-  /* 移动端触摸优化 */
-  @media (hover: none) and (pointer: coarse) {
-    button, [role="button"] {
-      min-height: 44px;
-      min-width: 44px;
-    }
+
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
-  /* === 毛玻璃效果组件 === */
-  .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-lg);
+  .card-minimal {
+    @apply rounded-lg border border-border bg-card p-5 transition-[border-color,box-shadow,background-color] duration-200 md:p-7;
+    box-shadow: var(--shadow);
   }
-  
-  .glass-card {
-    @apply glass rounded-xl;
+
+  .card-minimal:hover {
+    @apply border-border-hover;
+    box-shadow: var(--shadow-md);
   }
-  
-  .glass-nav {
-    @apply glass rounded-2xl;
+
+  .metric-card {
+    @apply rounded-lg border border-border bg-card p-5 transition-[border-color,box-shadow,background-color] duration-200 md:p-6;
+    box-shadow: var(--shadow);
   }
-  
-  /* === 现代化卡片样式 === */
-  .modern-card {
-    @apply bg-card border border-border rounded-xl shadow-md hover:shadow-lg transition-all duration-300;
+
+  .metric-card:hover {
+    @apply border-border-hover;
   }
-  
-  .modern-card-hover {
-    @apply modern-card hover:scale-[1.02] hover:border-primary/20;
-  }
-  
-  /* === 渐变背景 === */
-  .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
-  }
-  
-  .gradient-secondary {
-    background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--muted)) 100%);
-  }
-  
-  .gradient-dark {
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background-secondary)) 100%);
-  }
-  
-  /* === 文本渐变 === */
-  .text-gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  /* === 动画效果 === */
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-in-out;
-  }
-  
-  .animate-slide-up {
-    animation: slideUp 0.5s ease-out;
-  }
-  
-  .animate-scale-in {
-    animation: scaleIn 0.3s ease-out;
-  }
-  
-  /* === 导航栏样式 === */
-  .nav-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200;
-    @apply hover:bg-secondary hover:text-secondary-foreground;
-  }
-  
-  .nav-item-active {
-    @apply nav-item bg-primary text-primary-foreground shadow-sm;
-  }
-  
-  .nav-item-collapsed {
-    @apply nav-item justify-center px-2;
-  }
-  
-  /* === 按钮增强样式 === */
-  .btn-glass {
-    @apply glass px-4 py-2 rounded-lg font-medium transition-all duration-200;
-    @apply hover:shadow-xl hover:scale-105 active:scale-95;
-  }
-  
-  .btn-primary-glass {
-    @apply btn-glass bg-primary/20 text-primary border-primary/30;
-    @apply hover:bg-primary hover:text-primary-foreground;
-  }
-  
-  /* === 状态指示器 === */
-  .status-dot {
-    @apply w-2 h-2 rounded-full;
-  }
-  
-  .status-online {
-    @apply status-dot bg-success animate-pulse;
-  }
-  
-  .status-offline {
-    @apply status-dot bg-muted-foreground;
-  }
-  
-  .status-warning {
-    @apply status-dot bg-warning animate-pulse;
-  }
-  
-  /* === 数据卡片样式 === */
-  .data-card {
-    @apply modern-card p-6 space-y-4;
-  }
-  
-  .data-card-header {
-    @apply flex items-center justify-between;
-  }
-  
-  .data-card-title {
-    @apply text-sm font-medium text-muted-foreground;
-  }
-  
-  .data-card-value {
-    @apply text-2xl font-bold text-foreground;
-  }
-  
-  .data-card-trend {
-    @apply text-xs font-medium flex items-center gap-1;
-  }
-  
-  .data-card-trend-up {
-    @apply data-card-trend text-success;
-  }
-  
-  .data-card-trend-down {
-    @apply data-card-trend text-destructive;
-  }
-  
-  /* === 响应式布局组件 === */
-  .responsive-grid {
-    @apply grid gap-4;
-    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
-  }
-  
-  .responsive-grid-2 {
-    @apply grid gap-4;
-    @apply grid-cols-1 md:grid-cols-2;
-  }
-  
-  .responsive-grid-3 {
-    @apply grid gap-4;
-    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
-  }
-  
-  .responsive-flex {
-    @apply flex flex-col sm:flex-row gap-4;
-  }
-  
-  /* === 移动端优化 === */
-  .mobile-menu {
-    @apply fixed inset-0 z-50 bg-background/80 backdrop-blur-sm;
-    @apply lg:hidden;
-  }
-  
-  .mobile-menu-content {
-    @apply fixed left-0 top-0 h-full w-64 bg-card border-r border-border;
-    @apply transform transition-transform duration-300 ease-in-out;
-  }
-  
-  .mobile-menu-overlay {
-    @apply absolute inset-0 bg-black/20;
-  }
-  
-  /* === 触摸友好的交互 === */
-  .touch-target {
-    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
-  }
-  
-  .touch-button {
-    @apply touch-target rounded-lg transition-colors duration-200;
-    @apply hover:bg-secondary active:bg-secondary/80;
-  }
-  
-  /* === 可访问性增强 === */
-  .focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
-  }
-  
-  .sr-only {
-    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
-    clip: rect(0, 0, 0, 0);
+
+  .section-panel {
+    @apply rounded-lg border border-border bg-card p-5 md:p-7;
+    box-shadow: var(--shadow);
   }
 }
 
 @layer utilities {
-  /* === 自定义工具类 === */
+  .transition-smooth {
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  }
+
   .text-balance {
     text-wrap: balance;
   }
-  
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-  
-  /* === 响应式间距 === */
-  .container-padding {
-    @apply px-4 sm:px-6 lg:px-8;
-  }
-  
-  .section-padding {
-    @apply py-8 sm:py-12 lg:py-16;
-  }
-  
-  /* === 响应式文本大小 === */
-  .text-responsive-xs {
-    @apply text-xs sm:text-sm;
-  }
-  
-  .text-responsive-sm {
-    @apply text-sm sm:text-base;
-  }
-  
-  .text-responsive-base {
-    @apply text-base sm:text-lg;
-  }
-  
-  .text-responsive-lg {
-    @apply text-lg sm:text-xl;
-  }
-  
-  .text-responsive-xl {
-    @apply text-xl sm:text-2xl;
-  }
-  
-  .text-responsive-2xl {
-    @apply text-2xl sm:text-3xl;
-  }
-  
-  /* === 响应式间距工具 === */
-  .gap-responsive {
-    @apply gap-2 sm:gap-4 lg:gap-6;
-  }
-  
-  .p-responsive {
-    @apply p-4 sm:p-6 lg:p-8;
-  }
-  
-  .m-responsive {
-    @apply m-4 sm:m-6 lg:m-8;
-  }
-  
-  /* === 断点显示/隐藏 === */
-  .mobile-only {
-    @apply block sm:hidden;
-  }
-  
-  .tablet-up {
-    @apply hidden sm:block;
-  }
-  
-  .desktop-up {
-    @apply hidden lg:block;
-  }
-  
-  .mobile-tablet {
-    @apply block lg:hidden;
-  }
 }
 
-/* === 关键帧动画 === */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
 }
 
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.28);
+  border-radius: 999px;
 }
 
-@keyframes marquee {
-  0% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-.animate-marquee {
-  animation: marquee 30s linear infinite;
-}
-
-.animate-marquee:hover {
-  animation-play-state: paused;
-}
-
-/* === 媒体查询优化 === */
-@media (max-width: 640px) {
-  .container {
-    @apply px-4;
-  }
-  
-  .modern-card {
-    @apply rounded-lg;
-  }
-  
-  .glass-card {
-    @apply rounded-lg;
-  }
-}
-
-@media (max-width: 768px) {
-  .data-card-value {
-    @apply text-xl;
-  }
-  
-  .nav-item {
-    @apply py-3;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* === 打印样式 === */
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  
-  .glass,
-  .glass-card,
-  .glass-nav {
-    background: white !important;
-    backdrop-filter: none !important;
-    border: 1px solid #e5e7eb !important;
-  }
-  
-  .modern-card {
-    box-shadow: none !important;
-    border: 1px solid #e5e7eb !important;
-  }
-}
-
-/* === 高对比度模式支持 === */
-@media (prefers-contrast: high) {
-  .modern-card {
-    @apply border-2;
-  }
-  
-  .glass {
-    background: hsl(var(--card)) !important;
-    backdrop-filter: none !important;
-  }
+::selection {
+  background-color: hsl(var(--primary) / 0.14);
 }

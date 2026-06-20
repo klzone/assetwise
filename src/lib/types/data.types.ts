@@ -1,6 +1,6 @@
 // 用户类型
 export interface User {
-  id: number;
+  id: string; // 统一为UUID字符串
   username: string;
   email: string;
   subscription_type: 'free' | 'professional' | 'flagship';
@@ -30,8 +30,8 @@ export type Currency = 'CNY' | 'USD' | 'HKD' | 'EUR' | 'JPY' | 'GBP' | 'SGD' | '
 
 // 账户类型
 export interface Account {
-  id: string; // 修改为UUID字符串
-  user_id: string; // 统一为字符串UUID
+  id: string; // UUID字符串
+  user_id: string; // UUID字符串
   name: string;
   type: AccountType;
   broker?: string; // 券商/机构名称
@@ -50,8 +50,8 @@ export interface Account {
 
 // 资产类型
 export interface Asset {
-  id: number;
-  user_id: number;
+  id: number; // 资产ID可能仍为数字，视后端实现而定，这里暂保留数字或根据实际情况调整
+  user_id: string; // UUID
   symbol: string;
   name: string;
   type: 'stock' | 'fund' | 'bond' | 'crypto';
@@ -61,16 +61,16 @@ export interface Asset {
   total_value: number;
   profit: number;
   profit_percentage: number;
-  account_id: number;
+  account_id: string; // UUID
   created_at: string;
   updated_at: string;
 }
 
 // 交易记录类型
 export interface Transaction {
-  id: string; // 修改为UUID字符串
-  user_id: string; // 统一为字符串UUID
-  account_id: string; // 修改为UUID字符串
+  id: string; // UUID字符串
+  user_id: string; // UUID字符串
+  account_id: string; // UUID字符串
   type: 'buy' | 'sell' | 'dividend' | 'deposit' | 'withdraw' | 'split' | 'merge' | 'bonus' | 'rights' | 'transfer_in' | 'transfer_out'; // 完整的交易类型
   symbol?: string; // 可选
   name?: string; // 可选
@@ -90,7 +90,7 @@ export interface Transaction {
 // 复盘日志类型
 export interface ReviewLog {
   id: number;
-  user_id: number | string; // 支持数字和字符串ID
+  user_id: string; // UUID
   date?: string; // 兼容旧字段
   review_date?: string; // 新字段名
   title: string;
@@ -122,19 +122,86 @@ export interface DashboardData {
   performanceData: {
     date: string;
     value: number;
+    return: number;
   }[];
+}
+
+// 用户设置类型
+export interface UserSettings {
+  id: number;
+  user_id?: string;
+
+  // 个人信息
+  name: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  bio: string;
+
+  // 通知设置
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  smsNotifications: boolean;
+  priceAlerts: boolean;
+  newsAlerts: boolean;
+  portfolioUpdates: boolean;
+
+  // 安全设置
+  twoFactorAuth: boolean;
+  loginAlerts: boolean;
+  sessionTimeout: string;
+
+  // 显示设置
+  language: string;
+  currency: string;
+  dateFormat: string;
+  numberFormat: string;
+  theme: string;
+
+  // 数据设置
+  dataRetention: string;
+  autoBackup: boolean;
+  exportFormat: string;
+
+  // 元数据
+  createdAt: string;
+  updatedAt: string;
+  version?: number;
+  checksum?: string;
+  deviceId?: string;
 }
 
 // 投资计划类型
 export interface InvestmentPlan {
-  id: number | string; // 支持数字和字符串ID
-  user_id: number | string;
+  id: number;
+  user_id?: string;
   title: string;
-  description?: string; // 可选字段
-  target_amount: number;
-  current_amount: number;
-  target_date: string;
-  status: 'active' | 'completed' | 'paused' | 'cancelled'; // 添加取消状态
-  created_at: string;
-  updated_at?: string; // 添加更新时间字段
+  description: string;
+  status: 'active' | 'paused' | 'completed' | 'draft';
+  priority: 'high' | 'medium' | 'low';
+  targetAmount: number;
+  currentAmount: number;
+  startDate: string;
+  endDate: string;
+  expectedReturn: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  category: string;
+  assets: Array<{
+    name: string;
+    allocation: number;
+    currentPrice: number;
+    targetPrice: number;
+  }>;
+  milestones: Array<{
+    title: string;
+    targetDate: string;
+    completed: boolean;
+    description: string;
+  }>;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  version?: number;
+  checksum?: string;
+  deviceId?: string;
 }

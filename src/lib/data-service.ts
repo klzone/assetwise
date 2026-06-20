@@ -248,23 +248,46 @@ class DataService {
     const assets = assetStorage.getLocalAssets();
     
     return transactions.map(transaction => {
-      const asset = assets.find(a => a.id === transaction.assetId);
+      // 首先尝试从当前资产列表中查找
+      let asset = assets.find(a => a.id === transaction.assetId);
+      
+      // 如果在当前资产列表中找不到，使用交易记录中保存的资产信息
+      let assetName = transaction.assetName || '未知资产';
+      let assetSymbol = transaction.assetSymbol || 'UNKNOWN';
+      
+      if (asset) {
+        assetName = asset.name;
+        assetSymbol = asset.symbol;
+      }
       
       // 计算交易盈亏（仅对卖出交易）
       let profit: number | undefined;
       let profitRate: number | undefined;
       
-      if (transaction.type === TransactionType.SELL && asset) {
-        const costPerUnit = asset.totalCost / asset.quantity;
-        const sellProfit = (transaction.price - costPerUnit) * transaction.quantity;
-        profit = sellProfit;
-        profitRate = costPerUnit > 0 ? (sellProfit / (costPerUnit * transaction.quantity)) * 100 : 0;
+      if (transaction.type === TransactionType.SELL) {
+        // 对于卖出交易，尝试计算盈亏
+        // 如果交易记录中已经有盈亏信息，直接使用
+        if (transaction.profit !== undefined) {
+          profit = transaction.profit;
+          profitRate = transaction.profitRate;
+        } else if (asset) {
+          // 如果资产还存在，计算盈亏
+          const costPerUnit = asset.totalCost / asset.quantity;
+          const sellProfit = (transaction.price - costPerUnit) * transaction.quantity;
+          profit = sellProfit;
+          profitRate = costPerUnit > 0 ? (sellProfit / (costPerUnit * transaction.quantity)) * 100 : 0;
+        } else {
+          // 如果资产已经完全卖出，使用简单的盈亏计算
+          // 这里需要更复杂的逻辑来计算历史成本，暂时设为0
+          profit = 0;
+          profitRate = 0;
+        }
       }
       
       return {
         ...transaction,
-        assetName: asset?.name || '未知资产',
-        assetSymbol: asset?.symbol || 'UNKNOWN',
+        assetName,
+        assetSymbol,
         profit,
         profitRate,
         status: 'completed' as const // 所有交易默认为已完成状态
@@ -445,6 +468,42 @@ class DataService {
    */
   async syncFromCloud(): Promise<AssetData[]> {
     return await assetStorage.syncFromCloud();
+  }
+
+  /**
+   * 删除交易记录
+   */
+  async deleteTransaction(transactionId: string): Promise<boolean> {
+    try {
+      const success = assetStorage.deleteTransaction(transactionId);
+      if (success) {
+        console.log('交易记录删除成功:', transactionId);
+        // 自动上传到云端
+        await this.syncToCloud();
+      }
+      return success;
+    } catch (error) {
+      console.error('删除交易记录失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 更新交易记录
+   */
+  async updateTransaction(transactionId: string, updates: Partial<Transaction>): Promise<boolean> {
+    try {
+      const success = assetStorage.updateTransaction(transactionId, updates);
+      if (success) {
+        console.log('交易记录更新成功:', transactionId);
+        // 自动上传到云端
+        await this.syncToCloud();
+      }
+      return success;
+    } catch (error) {
+      console.error('更新交易记录失败:', error);
+      return false;
+    }
   }
 
   /**

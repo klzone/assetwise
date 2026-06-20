@@ -1,403 +1,510 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
-import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Filter, 
-  Search, 
-  Calendar,
-  Download,
-  Plus,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Clock,
-  Eye,
-  Edit,
-  Trash2
-} from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { PageTransition, CardEnterAnimation, FadeInAnimation } from '@/components/ui/page-transition'
-import { AnimatedCounter, AnimatedCurrency, AnimatedPercentage } from '@/components/ui/animated-counter'
-import { dataService, TransactionWithAsset } from '@/lib/data-service'
-import { TransactionType } from '@/lib/transaction-types'
+import type { FormEvent } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle, Eye, Plus, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { FilterToolbar, MetricCard, PageHeader, PageShell, SectionPanel } from "@/components/ui/workspace"
+import {
+  evaluateTransactionAgainstPlan,
+  findRecommendedPlan,
+  getRuleCheckLabel,
+  getStoredInvestmentPlans,
+  getStoredPlanTransactions,
+  refreshPlanExecutionStats,
+  saveStoredInvestmentPlans,
+  saveStoredPlanTransactions,
+  type InvestmentPlan,
+  type PlanLinkedTransaction,
+  type PlanRuleCheck,
+  type TransactionKind,
+} from "@/lib/investment-plans"
+
+type TransactionForm = {
+  date: string
+  kind: TransactionKind
+  asset: string
+  symbol: string
+  quantity: string
+  price: string
+  reason: string
+  result: string
+  planId: string
+  planRuleNotes: string
+}
+
+const emptyForm: TransactionForm = {
+  date: "2026-06-18",
+  kind: "buy",
+  asset: "",
+  symbol: "",
+  quantity: "",
+  price: "",
+  reason: "",
+  result: "",
+  planId: "none",
+  planRuleNotes: "",
+}
 
 export default function TransactionsPage() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [activeTab, setActiveTab] = useState('all')
-  const [transactions, setTransactions] = useState<TransactionWithAsset[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [stats, setStats] = useState({
-    totalTransactions: 0,
-    totalBuyAmount: 0,
-    totalSellAmount: 0,
-    totalProfit: 0,
-    buyCount: 0,
-    sellCount: 0
-  })
+  const [transactions, setTransactions] = useState<PlanLinkedTransaction[]>([])
+  const [plans, setPlans] = useState<InvestmentPlan[]>([])
+  const [query, setQuery] = useState("")
+  const [kind, setKind] = useState<"all" | TransactionKind>("all")
+  const [selected, setSelected] = useState<PlanLinkedTransaction | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [form, setForm] = useState<TransactionForm>(emptyForm)
 
-  // 加载数据
   const loadData = () => {
-    try {
-      const transactionData = dataService.getTransactionsWithAssets()
-      const transactionStats = dataService.getTransactionStats()
-      
-      setTransactions(transactionData)
-      setStats(transactionStats)
-    } catch (error) {
-      console.error('加载交易数据失败:', error)
-    } finally {
-      setIsLoading(false)
-    }
+    setTransactions(getStoredPlanTransactions())
+    setPlans(getStoredInvestmentPlans())
   }
 
   useEffect(() => {
     loadData()
+    window.addEventListener("assetwise-transactions-updated", loadData)
+    window.addEventListener("assetwise-plans-updated", loadData)
+    return () => {
+      window.removeEventListener("assetwise-transactions-updated", loadData)
+      window.removeEventListener("assetwise-plans-updated", loadData)
+    }
   }, [])
 
-  // 过滤交易记录
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = transaction.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         transaction.assetSymbol.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = filterType === 'all' || transaction.type === filterType
-    const matchesStatus = filterStatus === 'all' || transaction.status === filterStatus
-    const matchesTab = activeTab === 'all' || transaction.type === activeTab
-    
-    return matchesSearch && matchesType && matchesStatus && matchesTab
-  })
+  const filteredTransactions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
 
-  if (isLoading) {
-    return (
-      <PageTransition>
-        <div className="space-y-8">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-32 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </PageTransition>
-    )
-  }
+    return transactions.filter((transaction) => {
+      const matchesKind = kind === "all" || transaction.kind === kind
+      const matchesQuery =
+        !normalizedQuery ||
+        transaction.asset.toLowerCase().includes(normalizedQuery) ||
+        transaction.symbol.toLowerCase().includes(normalizedQuery) ||
+        transaction.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
 
-  return (
-    <PageTransition>
-      <div className="space-y-8">
-        {/* 页面标题区域 */}
-        <FadeInAnimation delay={0}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gradient-primary">交易记录</h1>
-              <p className="text-muted-foreground mt-2">
-                查看和分析您的所有交易活动
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="glass-effect">
-                <Download className="h-4 w-4 mr-2" />
-                导出记录
-              </Button>
-              <Button size="sm" className="bg-primary hover:bg-primary-hover" asChild>
-                <a href="/assets">
-                  <Plus className="h-4 w-4 mr-2" />
-                  新增交易
-                </a>
-              </Button>
-            </div>
-          </div>
-        </FadeInAnimation>
-
-        {/* 统计卡片区域 */}
-        <CardEnterAnimation delay={100}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard
-              title="总交易次数"
-              value={stats.totalTransactions}
-              icon={<DollarSign className="h-5 w-5" />}
-              description="累计交易"
-            />
-            <StatCard
-              title="买入总额"
-              value={stats.totalBuyAmount}
-              icon={<TrendingUp className="h-5 w-5" />}
-              description="资金投入"
-              isCurrency
-            />
-            <StatCard
-              title="卖出总额"
-              value={stats.totalSellAmount}
-              icon={<TrendingDown className="h-5 w-5" />}
-              description="资金回收"
-              isCurrency
-            />
-            <StatCard
-              title="交易盈亏"
-              value={stats.totalProfit}
-              icon={<ArrowUpRight className="h-5 w-5" />}
-              description="卖出净收益"
-              isCurrency
-              isProfit
-            />
-          </div>
-        </CardEnterAnimation>
-
-        {/* 筛选和搜索区域 */}
-        <CardEnterAnimation delay={200}>
-          <Card className="modern-card">
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="搜索资产名称或代码..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="交易类型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部类型</SelectItem>
-                      <SelectItem value="buy">买入</SelectItem>
-                      <SelectItem value="sell">卖出</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="状态" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部状态</SelectItem>
-                      <SelectItem value="completed">已完成</SelectItem>
-                      <SelectItem value="pending">待处理</SelectItem>
-                      <SelectItem value="failed">失败</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm">
-                    <Filter className="h-4 w-4 mr-2" />
-                    更多筛选
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </CardEnterAnimation>
-
-        {/* 交易记录列表 */}
-        <CardEnterAnimation delay={300}>
-          <Card className="modern-card">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-semibold">交易明细</CardTitle>
-                  <CardDescription>共 {filteredTransactions.length} 条记录</CardDescription>
-                </div>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="all">全部</TabsTrigger>
-                    <TabsTrigger value="buy">买入</TabsTrigger>
-                    <TabsTrigger value="sell">卖出</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction, index) => (
-                    <TransactionItem 
-                      key={transaction.id} 
-                      transaction={transaction}
-                      delay={index * 50}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                      <Clock className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">暂无交易记录</h3>
-                    <p className="text-muted-foreground mb-4">
-                      {searchTerm || filterType !== 'all' || filterStatus !== 'all' 
-                        ? '没有找到符合条件的交易记录，请调整筛选条件'
-                        : '还没有任何交易记录，开始添加您的第一笔资产吧'
-                      }
-                    </p>
-                    <Button asChild>
-                      <a href="/assets">
-                        <Plus className="h-4 w-4 mr-2" />
-                        添加资产
-                      </a>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </CardEnterAnimation>
-      </div>
-    </PageTransition>
-  )
-}
-
-// 统计卡片组件
-interface StatCardProps {
-  title: string
-  value: number
-  icon: React.ReactNode
-  description: string
-  isCurrency?: boolean
-  isProfit?: boolean
-}
-
-function StatCard({ title, value, icon, description, isCurrency, isProfit }: StatCardProps) {
-  return (
-    <Card className="modern-card-hover">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            {icon}
-          </div>
-          {isProfit && (
-            <div className={`flex items-center gap-1 text-sm font-medium ${
-              value >= 0 ? 'text-success' : 'text-destructive'
-            }`}>
-              {value >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-              {value >= 0 ? '+' : ''}
-            </div>
-          )}
-        </div>
-        <div className="space-y-1">
-          <div className="text-2xl font-bold">
-            {isCurrency ? (
-              <AnimatedCurrency value={value} />
-            ) : (
-              <AnimatedCounter value={value} />
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// 交易记录项组件
-interface TransactionItemProps {
-  transaction: TransactionWithAsset
-  delay?: number
-}
-
-function TransactionItem({ transaction, delay = 0 }: TransactionItemProps) {
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+      return matchesKind && matchesQuery
     })
-  }
+  }, [kind, query, transactions])
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      completed: { label: '已完成', variant: 'default' as const },
-      pending: { label: '待处理', variant: 'secondary' as const },
-      failed: { label: '失败', variant: 'destructive' as const }
+  const totalBuy = transactions
+    .filter((item) => item.kind === "buy")
+    .reduce((sum, item) => sum + item.amount, 0)
+  const totalSell = transactions
+    .filter((item) => item.kind === "sell")
+    .reduce((sum, item) => sum + item.amount, 0)
+  const violatedCount = transactions.filter((item) => item.planRuleCheck === "violated").length
+
+  const selectedPlan = form.planId === "none" ? null : plans.find((plan) => plan.id === form.planId) ?? null
+  const draftAmount = Number(form.quantity || 0) * Number(form.price || 0)
+  const draftEvaluation = evaluateTransactionAgainstPlan(
+    {
+      kind: form.kind,
+      asset: form.asset,
+      symbol: form.symbol,
+      amount: draftAmount,
+      price: Number(form.price || 0),
+    },
+    selectedPlan,
+  )
+
+  const updateForm = <K extends keyof TransactionForm>(key: K, value: TransactionForm[K]) => {
+    const nextForm = { ...form, [key]: value }
+
+    if ((key === "asset" || key === "symbol") && nextForm.planId === "none") {
+      const recommended = findRecommendedPlan({ asset: nextForm.asset, symbol: nextForm.symbol }, plans)
+      if (recommended) {
+        nextForm.planId = recommended.id
+        nextForm.planRuleNotes = "系统根据资产自动推荐关联该计划。"
+      }
     }
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.completed
+
+    setForm(nextForm)
   }
 
-  const statusBadge = getStatusBadge(transaction.status)
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const quantity = Number(form.quantity)
+    const price = Number(form.price)
+    const amount = quantity * price
+    if (!form.asset.trim() || !form.symbol.trim() || Number.isNaN(quantity) || Number.isNaN(price) || amount <= 0) return
+
+    const plan = form.planId === "none" ? null : plans.find((item) => item.id === form.planId) ?? null
+    const evaluation = evaluateTransactionAgainstPlan(
+      { kind: form.kind, asset: form.asset, symbol: form.symbol, amount, price },
+      plan,
+    )
+
+    const nextTransaction: PlanLinkedTransaction = {
+      id: `tx-${Date.now()}`,
+      date: form.date,
+      kind: form.kind,
+      asset: form.asset.trim(),
+      symbol: form.symbol.trim().toUpperCase(),
+      quantity,
+      price,
+      amount,
+      reason: form.reason.trim() || (plan ? `关联计划：${plan.title}` : "手动记录交易"),
+      result: form.result.trim() || "待复盘",
+      tags: plan ? [getRuleCheckLabel(evaluation.status), "计划关联"] : ["未关联计划"],
+      planId: plan?.id,
+      planRuleCheck: evaluation.status,
+      planRuleNotes: form.planRuleNotes.trim() || evaluation.notes,
+    }
+
+    const nextTransactions = [nextTransaction, ...transactions]
+    const refreshedPlans = refreshPlanExecutionStats(plans, nextTransactions)
+    setTransactions(nextTransactions)
+    setPlans(refreshedPlans)
+    saveStoredPlanTransactions(nextTransactions)
+    saveStoredInvestmentPlans(refreshedPlans)
+    setDialogOpen(false)
+    setForm(emptyForm)
+  }
 
   return (
-    <FadeInAnimation delay={delay}>
-      <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/30 transition-colors">
-        <div className="flex items-center gap-4">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            transaction.type === TransactionType.BUY ? 'bg-success/10' : 'bg-destructive/10'
-          }`}>
-            {transaction.type === TransactionType.BUY ? (
-              <TrendingUp className="h-5 w-5 text-success" />
-            ) : (
-              <TrendingDown className="h-5 w-5 text-destructive" />
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="font-medium">{transaction.assetName}</h4>
-              <Badge variant="outline" className="text-xs">{transaction.assetSymbol}</Badge>
-              <Badge variant={statusBadge.variant} className="text-xs">
-                {statusBadge.label}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{transaction.quantity} 股</span>
-              <span>¥{transaction.price.toFixed(2)}/股</span>
-              <span>{formatDate(transaction.date)}</span>
-            </div>
-          </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Transactions"
+        title="交易记录"
+        description="记录买入卖出、关联投资计划，并检查是否符合计划纪律。"
+        actions={
+          <Button className="gap-2" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            新增交易
+          </Button>
+        }
+      />
+
+      <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MetricCard title="交易笔数" value={transactions.length} />
+        <MetricCard title="买入总额" value={`¥${totalBuy.toLocaleString("zh-CN")}`} tone="positive" />
+        <MetricCard title="卖出总额" value={`¥${totalSell.toLocaleString("zh-CN")}`} tone="negative" />
+        <MetricCard title="偏离计划" value={violatedCount} tone={violatedCount > 0 ? "negative" : "default"} />
+      </section>
+
+      <SectionPanel eyebrow="Ledger" title="交易明细" description={`${filteredTransactions.length} 条记录`}>
+        <FilterToolbar
+          className="mb-4"
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="搜索资产、代码或标签"
+          filters={
+            <Select value={kind} onValueChange={(value) => setKind(value as "all" | TransactionKind)}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="buy">买入</SelectItem>
+                <SelectItem value="sell">卖出</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+
+        <div className="divide-y divide-border">
+          {filteredTransactions.map((transaction) => {
+            const plan = plans.find((item) => item.id === transaction.planId)
+            return (
+              <button
+                key={transaction.id}
+                type="button"
+                onClick={() => setSelected(transaction)}
+                className="grid w-full grid-cols-1 gap-3 rounded-xl px-2.5 py-3 text-left transition-smooth hover:bg-background-secondary/80 md:grid-cols-[1fr_auto]"
+              >
+                <div className="flex items-start gap-3">
+                  <TransactionIcon kind={transaction.kind} />
+                  <div className="min-w-0">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-foreground">{transaction.asset}</h3>
+                      <Badge variant="outline">{transaction.symbol}</Badge>
+                      <Badge variant={transaction.kind === "buy" ? "default" : "secondary"}>
+                        {transaction.kind === "buy" ? "买入" : "卖出"}
+                      </Badge>
+                      <RuleCheckBadge status={transaction.planRuleCheck} />
+                    </div>
+                    <p className="mb-2 max-w-3xl text-xs leading-5 text-muted-foreground">{transaction.reason}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {plan ? <Badge variant="secondary">计划：{plan.title}</Badge> : null}
+                      {transaction.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-4 md:justify-end">
+                  <div className="text-left md:text-right">
+                    <p className="font-tabular text-lg font-semibold text-foreground">¥{transaction.amount.toLocaleString("zh-CN")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {transaction.quantity} 份 · {transaction.date}
+                    </p>
+                  </div>
+                  <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                </div>
+              </button>
+            )
+          })}
         </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="font-medium">
-              <AnimatedCurrency value={transaction.totalAmount} />
-            </div>
-            {transaction.profit !== undefined && transaction.profitRate !== undefined && (
-              <div className={`text-sm ${
-                transaction.profit >= 0 ? 'text-success' : 'text-destructive'
-              }`}>
-                {transaction.profit >= 0 ? '+' : ''}
-                <AnimatedCurrency value={transaction.profit} />
-                ({transaction.profit >= 0 ? '+' : ''}
-                <AnimatedPercentage value={transaction.profitRate} showSign={false} />)
-              </div>
-            )}
+      </SectionPanel>
+
+      <TransactionEditorDialog
+        open={dialogOpen}
+        form={form}
+        plans={plans}
+        evaluation={draftEvaluation}
+        onFormChange={updateForm}
+        onSubmit={handleSubmit}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) setForm(emptyForm)
+        }}
+      />
+      <TransactionDetailDialog
+        transaction={selected}
+        plan={selected ? plans.find((item) => item.id === selected.planId) ?? null : null}
+        onOpenChange={(open) => !open && setSelected(null)}
+      />
+    </PageShell>
+  )
+}
+
+function TransactionIcon({ kind }: { kind: TransactionKind }) {
+  const isBuy = kind === "buy"
+  const Icon = isBuy ? ArrowDownLeft : ArrowUpRight
+
+  return (
+    <div
+      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+        isBuy ? "bg-success-light text-success" : "bg-destructive-light text-destructive"
+      }`}
+      aria-hidden="true"
+    >
+      <Icon className="h-4 w-4" />
+    </div>
+  )
+}
+
+function TransactionEditorDialog({
+  open,
+  form,
+  plans,
+  evaluation,
+  onFormChange,
+  onSubmit,
+  onOpenChange,
+}: {
+  open: boolean
+  form: TransactionForm
+  plans: InvestmentPlan[]
+  evaluation: { status: PlanRuleCheck; notes: string }
+  onFormChange: <K extends keyof TransactionForm>(key: K, value: TransactionForm[K]) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>新增交易</DialogTitle>
+          <DialogDescription>关联投资计划后，系统会在保存前检查交易是否符合计划纪律。</DialogDescription>
+        </DialogHeader>
+
+        <form className="grid gap-4" onSubmit={onSubmit}>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="日期">
+              <Input value={form.date} onChange={(event) => onFormChange("date", event.target.value)} type="date" />
+            </Field>
+            <Field label="方向">
+              <Select value={form.kind} onValueChange={(value) => onFormChange("kind", value as TransactionKind)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buy">买入</SelectItem>
+                  <SelectItem value="sell">卖出</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="资产名称">
+              <Input value={form.asset} onChange={(event) => onFormChange("asset", event.target.value)} placeholder="沪深300 ETF" required />
+            </Field>
+            <Field label="资产代码">
+              <Input value={form.symbol} onChange={(event) => onFormChange("symbol", event.target.value.toUpperCase())} placeholder="510300" required />
+            </Field>
+            <Field label="数量">
+              <Input value={form.quantity} onChange={(event) => onFormChange("quantity", event.target.value)} inputMode="decimal" required />
+            </Field>
+            <Field label="价格">
+              <Input value={form.price} onChange={(event) => onFormChange("price", event.target.value)} inputMode="decimal" required />
+            </Field>
+            <Field label="关联计划">
+              <Select value={form.planId} onValueChange={(value) => onFormChange("planId", value)}>
+                <SelectTrigger className="md:col-span-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">不关联计划</SelectItem>
+                  {plans
+                    .filter((plan) => plan.status === "active" || plan.status === "draft")
+                    .map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id}>
+                        {plan.title}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Eye className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Eye className="h-4 w-4 mr-2" />
-                查看详情
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Edit className="h-4 w-4 mr-2" />
-                编辑交易
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                删除记录
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+
+          <RuleCheckPanel status={evaluation.status} notes={evaluation.notes} />
+
+          {(evaluation.status === "warning" || evaluation.status === "violated") && (
+            <Field label="偏离/说明原因">
+              <Textarea
+                value={form.planRuleNotes}
+                onChange={(event) => onFormChange("planRuleNotes", event.target.value)}
+                rows={3}
+                placeholder="说明为什么仍然执行这笔交易，后续复盘会用到。"
+              />
+            </Field>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="交易理由">
+              <Textarea value={form.reason} onChange={(event) => onFormChange("reason", event.target.value)} rows={3} />
+            </Field>
+            <Field label="执行结果">
+              <Textarea value={form.result} onChange={(event) => onFormChange("result", event.target.value)} rows={3} placeholder="可先写待复盘" />
+            </Field>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              取消
+            </Button>
+            <Button type="submit">保存交易</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TransactionDetailDialog({
+  transaction,
+  plan,
+  onOpenChange,
+}: {
+  transaction: PlanLinkedTransaction | null
+  plan: InvestmentPlan | null
+  onOpenChange: (open: boolean) => void
+}) {
+  if (!transaction) return null
+
+  return (
+    <Dialog open={Boolean(transaction)} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="label-tiny mb-2">Transaction Detail</p>
+              <DialogTitle>{transaction.asset}</DialogTitle>
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onOpenChange(false)} aria-label="关闭交易详情">
+              <X className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </DialogHeader>
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <Detail label="代码" value={transaction.symbol} />
+          <Detail label="日期" value={transaction.date} />
+          <Detail label="数量" value={`${transaction.quantity} 份`} />
+          <Detail label="价格" value={`¥${transaction.price.toFixed(2)}`} />
+          <Detail label="金额" value={`¥${transaction.amount.toLocaleString("zh-CN")}`} />
+          <Detail label="方向" value={transaction.kind === "buy" ? "买入" : "卖出"} />
+        </dl>
+        <div className="space-y-3">
+          <Thinking label="关联计划" value={plan?.title ?? "未关联计划"} />
+          <Thinking label="规则检查" value={`${getRuleCheckLabel(transaction.planRuleCheck)}：${transaction.planRuleNotes || "无备注"}`} />
+          <Thinking label="交易理由" value={transaction.reason} />
+          <Thinking label="执行结果" value={transaction.result} />
         </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RuleCheckPanel({ status, notes }: { status: PlanRuleCheck; notes: string }) {
+  const icon =
+    status === "matched" ? <CheckCircle className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+  const className =
+    status === "matched"
+      ? "border-success/30 bg-success-light text-success"
+      : status === "violated"
+        ? "border-destructive/30 bg-destructive-light text-destructive"
+        : "border-warning/30 bg-warning-light text-warning"
+
+  return (
+    <div className={`flex items-start gap-3 rounded-xl border p-3 ${className}`}>
+      {icon}
+      <div>
+        <div className="text-sm font-medium">{getRuleCheckLabel(status)}</div>
+        <div className="mt-1 text-sm leading-6">{notes}</div>
       </div>
-    </FadeInAnimation>
+    </div>
+  )
+}
+
+function RuleCheckBadge({ status }: { status?: PlanRuleCheck }) {
+  if (status === "violated") return <Badge variant="destructive">偏离计划</Badge>
+  if (status === "warning") return <Badge variant="secondary">需说明</Badge>
+  if (status === "matched") return <Badge variant="default">符合计划</Badge>
+  return <Badge variant="outline">未检查</Badge>
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  )
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="label-tiny mb-2">{label}</dt>
+      <dd className="font-tabular text-lg font-semibold text-foreground">{value}</dd>
+    </div>
+  )
+}
+
+function Thinking({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="label-tiny mb-2">{label}</p>
+      <p className="text-sm leading-6 text-foreground-secondary">{value}</p>
+    </div>
   )
 }

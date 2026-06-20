@@ -1,0 +1,182 @@
+# AssetWise 性能测试配置
+# 使用 Artillery.js 进行负载测试
+
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # 热身阶段
+    - duration: 60
+      arrivalRate: 1
+      name: "Warm up"
+    
+    # 负载增长阶段
+    - duration: 120
+      arrivalRate: 1
+      rampTo: 10
+      name: "Ramp up load"
+    
+    # 稳定负载阶段
+    - duration: 300
+      arrivalRate: 10
+      name: "Sustained load"
+    
+    # 峰值负载阶段
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 25
+      name: "Peak load"
+    
+    # 压力测试阶段
+    - duration: 120
+      arrivalRate: 25
+      rampTo: 50
+      name: "Stress test"
+  
+  # 性能指标阈值
+  ensure:
+    maxErrorRate: 5
+    maxP95: 2000  # 95th percentile response time (ms)
+    maxP99: 5000  # 99th percentile response time (ms)
+
+  # 插件配置
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    
+    # 发布到 Prometheus
+    prometheus:
+      pushgateway: 'http://localhost:9091'
+      job: 'artillery-load-test'
+
+  # 请求池配置
+  pool: 50
+  timeout: 30
+
+  # 处理器
+  processor: "./performance/helpers.js"
+
+# 测试场景
+scenarios:
+  # 主页访问测试
+  - name: "Homepage Access"
+    weight: 20
+    flow:
+      - get:
+          url: "/"
+          capture:
+            - header: "set-cookie"
+              as: "session"
+          expect:
+            - statusCode: 200
+            - contentType: "text/html"
+      
+      - think: 2
+      
+      - get:
+          url: "/api/health"
+          expect:
+            - statusCode: 200
+
+  # 用户认证流程测试
+  - name: "Authentication Flow"
+    weight: 15
+    flow:
+      - get:
+          url: "/login"
+          expect:
+            - statusCode: 200
+      
+      - think: 3
+      
+      - post:
+          url: "/api/auth/signin"
+          json:
+            email: "test{{ $randomInt(1, 1000) }}@example.com"
+            password: "testpassword123"
+          expect:
+            - statusCode: [200, 401]
+
+  # 资产数据查询测试
+  - name: "Asset Data Queries"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/assets"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+      
+      - think: 1
+      
+      - get:
+          url: "/api/assets/{{ $randomInt(1, 100) }}"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: [200, 404]
+
+  # 仪表板数据加载测试
+  - name: "Dashboard Data Loading"
+    weight: 25
+    flow:
+      - get:
+          url: "/dashboard"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+      
+      - get:
+          url: "/api/dashboard/summary"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+      
+      - think: 2
+      
+      - get:
+          url: "/api/dashboard/charts"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+
+  # 搜索功能测试
+  - name: "Search Functionality"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/search"
+          qs:
+            q: "{{ $randomString(3, 'abcdefghijklmnopqrstuvwxyz') }}"
+            limit: 10
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+
+# 测试数据配置
+payload:
+  path: "./performance/test-data.csv"
+  fields:
+    - "user_id"
+    - "asset_symbol"
+    - "search_term"
+
+# 运行后处理
+after:
+  # 生成性能报告
+  - plugin: "html-report"
+    config:
+      output: "./performance/reports/load-test-report.html"
+  
+  # 发送测试结果到 Slack
+  - plugin: "slack-webhook"
+    config:
+      webhook_url: "{{ $env.SLACK_WEBHOOK }}"
+      channel: "#performance"

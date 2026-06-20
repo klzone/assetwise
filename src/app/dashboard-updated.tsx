@@ -1,12 +1,12 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  PieChart, 
-  BarChart3, 
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  PieChart,
+  BarChart3,
   ArrowUpRight,
   ArrowDownRight,
   Eye,
@@ -98,9 +98,9 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="glass-effect"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
@@ -161,7 +161,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 资产配置图表 */}
           <div className="lg:col-span-2">
-            <AssetAllocationChart 
+            <AssetAllocationChart
               data={assetAllocation}
               title="资产配置分析"
               description="投资组合分布情况"
@@ -205,13 +205,13 @@ export default function DashboardPage() {
 
         {/* 收益趋势和资产表现图表 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProfitTrendChart 
+          <ProfitTrendChart
             data={profitTrend}
             title="收益趋势分析"
             description="过去30天收益变化趋势"
             chartType="area"
           />
-          <AssetPerformanceChart 
+          <AssetPerformanceChart
             data={assetPerformance}
             title="资产表现对比"
             description="各资产收益率排行"
@@ -323,7 +323,7 @@ function MetricCard({ title, value, change, changeType, icon, description, isCur
           {changeType !== 'neutral' && (
             <div className={`flex items-center gap-1 text-sm font-medium ${changeColor}`}>
               {changeIcon}
-              <AnimatedPercentage value={change} showSign={changeType !== 'neutral'} />
+              <AnimatedPercentage value={change} showSign={true} />
             </div>
           )}
         </div>

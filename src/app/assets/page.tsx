@@ -1,605 +1,657 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
-import { 
-  Plus, 
-  Search, 
-  Grid3X3, 
-  List,
-  RefreshCw,
-  Cloud,
-  CloudOff,
-  DollarSign
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { 
+import type { FormEvent, ReactNode } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Eye, Grid3X3, List, Pencil, Plus, Search, Trash2, Wallet } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { AssetGrid, AssetCardSkeleton, type AssetData } from '@/components/assets/asset-card'
-import { AssetListView } from '@/components/assets/asset-list-view'
-import { AddAssetDialog } from '@/components/assets/add-asset-dialog'
-import { EditAssetDialog } from '@/components/assets/edit-asset-dialog'
-import { AssetDetailDialog } from '@/components/assets/asset-detail-dialog'
-import { PriceManagementDialog } from '@/components/assets/price-management-dialog'
-import { ExportDialog } from '@/components/assets/export-dialog'
-import { SellAssetDialog } from '@/components/assets/sell-asset-dialog'
-import { DeleteConfirmationDialog } from '@/components/assets/delete-confirmation-dialog'
-import { LocaleProvider, useLocale } from '@/contexts/locale-context'
-import { assetStorage } from '@/lib/asset-storage'
-import { settingsManager } from '@/lib/settings'
-import { priceManager } from '@/lib/price-manager'
-import { dataSyncHelper } from '@/lib/data-sync-helper'
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { EmptyState, FilterToolbar, MetricCard, PageHeader, PageShell, ResponsiveDataView, SectionPanel } from "@/components/ui/workspace"
+import {
+  assetCategories,
+  defaultAssets,
+  getAssetSummary,
+  getChangeTextClass,
+  getStoredAssets,
+  getStoredSettings,
+  saveStoredAssets,
+  type ColorConvention,
+  type MvpAsset,
+  type RiskLevel,
+} from "@/lib/mvp-store"
 
-// 全面的资产分类定义
-const ASSET_CATEGORIES = {
-  // 股票类
-  '股票': ['科技股', '金融股', '消费股', '医疗股', '能源股', '工业股', '房地产股', '公用事业股'],
-  // 债券类
-  '债券': ['国债', '企业债', '可转债', '地方债', '金融债', '短期债券', '长期债券'],
-  // 基金类
-  '基金': ['股票基金', '债券基金', '混合基金', '货币基金', 'ETF基金', '指数基金', 'QDII基金'],
-  // 虚拟货币
-  '虚拟货币': ['比特币', '以太坊', '其他主流币', '山寨币', '稳定币', 'DeFi代币', 'NFT'],
-  // 房地产
-  '房地产': ['住宅', '商业地产', '工业地产', 'REITs', '土地', '海外房产', '房地产基金'],
-  // 现金及等价物
-  '现金': ['活期存款', '定期存款', '货币基金', '银行理财', '国债逆回购', '大额存单'],
-  // 保险
-  '保险': ['寿险', '重疾险', '意外险', '年金险', '投连险', '万能险', '教育金'],
-  // 贵金属
-  '贵金属': ['黄金', '白银', '铂金', '钯金', '黄金ETF', '贵金属基金'],
-  // 大宗商品
-  '大宗商品': ['原油', '天然气', '农产品', '工业金属', '商品期货', '商品基金'],
-  // 另类投资
-  '另类投资': ['私募股权', '对冲基金', '艺术品', '收藏品', '酒类投资', '版权投资']
+type AssetForm = {
+  name: string
+  symbol: string
+  category: string
+  value: string
+  cost: string
+  dayChange: string
+  risk: RiskLevel
 }
 
-function AssetsPageContent() {
-  const { formatCurrency, formatPercent, getProfitLossColorClass } = useLocale()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState('name')
-  const [filterCategory, setFilterCategory] = useState('all')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [selectedAsset, setSelectedAsset] = useState<AssetData | null>(null)
-  const [editingAsset, setEditingAsset] = useState<AssetData | null>(null)
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [priceDialogOpen, setPriceDialogOpen] = useState(false)
-  const [sellDialogOpen, setSellDialogOpen] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [assets, setAssets] = useState<AssetData[]>([])
-  const [syncStatus, setSyncStatus] = useState({ lastSync: 0, needsSync: false })
+const emptyForm: AssetForm = {
+  name: "",
+  symbol: "",
+  category: "宽基指数",
+  value: "",
+  cost: "",
+  dayChange: "0",
+  risk: "中",
+}
 
-  // 初始化数据和设置
+export default function AssetsPage() {
+  const [assets, setAssets] = useState<MvpAsset[]>(defaultAssets)
+  const [colorConvention, setColorConvention] = useState<ColorConvention>("chinese")
+  const [query, setQuery] = useState("")
+  const [category, setCategory] = useState("all")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list")
+  const [assetDialogOpen, setAssetDialogOpen] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<MvpAsset | null>(null)
+  const [form, setForm] = useState<AssetForm>(emptyForm)
+  const [deleteTarget, setDeleteTarget] = useState<MvpAsset | null>(null)
+  const [viewTarget, setViewTarget] = useState<MvpAsset | null>(null)
+
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true)
-      try {
-        // 首先清理重复数据
-        console.log('🧹 清理重复数据...')
-        assetStorage.cleanupDuplicateAssets()
-        assetStorage.cleanupDuplicateTransactions()
-        
-        // 检查是否有新下载的云端数据需要加载
-        if (dataSyncHelper.checkForNewCloudData()) {
-          console.log('🔄 发现新的云端数据，正在加载...')
-          const result = await dataSyncHelper.loadCloudDataToApp()
-          if (result.success) {
-            console.log('✅ 云端数据加载成功:', result.message)
-            // 确保在云端数据加载成功后立即更新资产列表
-            const updatedAssets = assetStorage.getLocalAssets()
-            setAssets(updatedAssets)
-          } else {
-            console.warn('⚠️ 云端数据加载失败:', result.message)
-          }
-        }
-        
-        // 加载本地资产数据
-        const localAssets = assetStorage.getLocalAssets()
-        setAssets(localAssets)
-        
-        // 加载用户设置
-        const settings = settingsManager.getSettings()
-        setViewMode(settings.defaultView)
-        
-        // 检查同步状态
-        const status = assetStorage.getSyncStatus()
-        setSyncStatus(status)
-        
-        // 如果需要同步且开启了自动同步，则执行同步
-        if (status.needsSync && settings.autoSync) {
-          handleSyncFromCloud()
-        }
-      } catch (error) {
-        console.error('加载数据失败:', error)
-      } finally {
-        setIsLoading(false)
-      }
+    const loadData = () => {
+      setAssets(getStoredAssets())
+      setColorConvention(getStoredSettings().colorConvention)
     }
-    
+
     loadData()
+    window.addEventListener("assetwise-assets-updated", loadData)
+    window.addEventListener("assetwise-settings-updated", loadData)
+    window.addEventListener("focus", loadData)
+
+    return () => {
+      window.removeEventListener("assetwise-assets-updated", loadData)
+      window.removeEventListener("assetwise-settings-updated", loadData)
+      window.removeEventListener("focus", loadData)
+    }
   }, [])
 
-  // 获取所有分类选项（包括主分类和子分类）
-  const getAllCategories = () => {
-    const allCategories = ['all']
-    Object.entries(ASSET_CATEGORIES).forEach(([mainCategory, subCategories]) => {
-      allCategories.push(mainCategory)
-      allCategories.push(...subCategories)
+  const categories = useMemo(
+    () => Array.from(new Set([...assetCategories, ...assets.map((asset) => asset.category)])),
+    [assets],
+  )
+
+  const filteredAssets = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+
+    return assets.filter((asset) => {
+      const matchesCategory = category === "all" || asset.category === category
+      const matchesQuery =
+        !normalizedQuery ||
+        asset.name.toLowerCase().includes(normalizedQuery) ||
+        asset.symbol.toLowerCase().includes(normalizedQuery)
+
+      return matchesCategory && matchesQuery
     })
-    return allCategories
+  }, [assets, category, query])
+
+  const summary = getAssetSummary(assets)
+  const totalProfitClass = getChangeTextClass(summary.totalProfit, colorConvention)
+  const totalProfitPercentClass = getChangeTextClass(summary.totalProfitPercent, colorConvention)
+
+  const saveAssets = (nextAssets: MvpAsset[]) => {
+    setAssets(nextAssets)
+    saveStoredAssets(nextAssets)
   }
 
-  const categories = getAllCategories()
+  const openCreateDialog = () => {
+    setEditingAsset(null)
+    setForm(emptyForm)
+    setAssetDialogOpen(true)
+  }
 
-  // 过滤和排序资产
-  const filteredAssets = assets
-    .filter(asset => {
-      const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           asset.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesCategory = filterCategory === 'all' || asset.category === filterCategory
-      return matchesSearch && matchesCategory
+  const openEditDialog = (asset: MvpAsset) => {
+    setEditingAsset(asset)
+    setForm({
+      name: asset.name,
+      symbol: asset.symbol,
+      category: asset.category,
+      value: String(asset.value),
+      cost: String(asset.cost),
+      dayChange: String(asset.dayChange),
+      risk: asset.risk,
     })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name)
-        case 'value':
-          return b.totalValue - a.totalValue
-        case 'profit':
-          return b.profitLoss - a.profitLoss
-        case 'change':
-          return b.dayChangePercent - a.dayChangePercent
-        default:
-          return 0
-      }
-    })
+    setAssetDialogOpen(true)
+  }
 
-  // 计算总计数据
-  const totalValue = assets.reduce((sum, asset) => sum + asset.totalValue, 0)
-  const totalCost = assets.reduce((sum, asset) => sum + asset.totalCost, 0)
-  const totalProfit = totalValue - totalCost
-  const totalProfitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+  const handleSubmitAsset = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
 
-  // 双向云端同步处理
-  const handleSyncFromCloud = async () => {
-    setIsSyncing(true)
-    try {
-      console.log('🔄 开始双向同步...')
-      
-      // 1. 先上传本地数据到云端
-      const localAssets = assetStorage.getLocalAssets()
-      if (localAssets.length > 0) {
-        console.log('📤 上传本地数据到云端:', localAssets.length, '项资产')
-        const uploadSuccess = await assetStorage.syncToCloud(localAssets)
-        if (uploadSuccess) {
-          console.log('✅ 本地数据上传成功')
-        } else {
-          console.warn('⚠️ 本地数据上传失败')
-        }
-      }
-      
-      // 2. 然后从云端下载最新数据
-      console.log('📥 从云端下载最新数据...')
-      const cloudAssets = await assetStorage.syncFromCloud()
-      setAssets(cloudAssets)
-      setSyncStatus(assetStorage.getSyncStatus())
-      
-      console.log('✅ 双向同步完成')
-    } catch (error) {
-      console.error('❌ 同步失败:', error)
-    } finally {
-      setIsSyncing(false)
+    const nextAsset: MvpAsset = {
+      id: editingAsset?.id ?? `asset-${Date.now()}`,
+      name: form.name.trim(),
+      symbol: form.symbol.trim().toUpperCase(),
+      category: form.category,
+      value: Number(form.value),
+      cost: Number(form.cost),
+      dayChange: Number(form.dayChange || 0),
+      risk: form.risk,
+    }
+
+    if (!nextAsset.name || !nextAsset.symbol || Number.isNaN(nextAsset.value) || Number.isNaN(nextAsset.cost)) {
+      return
+    }
+
+    const nextAssets = editingAsset
+      ? assets.map((asset) => (asset.id === editingAsset.id ? nextAsset : asset))
+      : [nextAsset, ...assets]
+
+    saveAssets(nextAssets)
+    setAssetDialogOpen(false)
+    setEditingAsset(null)
+    setForm(emptyForm)
+  }
+
+  const handleDeleteAsset = () => {
+    if (!deleteTarget) return
+
+    saveAssets(assets.filter((asset) => asset.id !== deleteTarget.id))
+    setDeleteTarget(null)
+
+    if (viewTarget?.id === deleteTarget.id) {
+      setViewTarget(null)
     }
   }
 
-  const handleAssetClick = (id: string) => {
-    const asset = assets.find(a => a.id === id)
-    if (asset) {
-      setSelectedAsset(asset)
-      setDetailDialogOpen(true)
-    }
-  }
-
-  const handleAssetView = (id: string) => {
-    handleAssetClick(id)
-  }
-
-  const handleAssetEdit = (id: string) => {
-    const asset = assets.find(a => a.id === id)
-    if (asset) {
-      setEditingAsset(asset)
-      setEditDialogOpen(true)
-    }
-  }
-
-  const handleAssetDelete = (id: string) => {
-    const asset = assets.find(a => a.id === id)
-    if (asset) {
-      setSelectedAsset(asset)
-      setDeleteDialogOpen(true)
-    }
-  }
-
-  const handleSoftDelete = (id: string) => {
-    const success = assetStorage.deleteAsset(id)
-    if (success) {
-      setAssets(assetStorage.getLocalAssets())
-      setSyncStatus(assetStorage.getSyncStatus())
-      // 关闭所有对话框
-      setDetailDialogOpen(false)
-      setDeleteDialogOpen(false)
-      setSelectedAsset(null)
-    }
-  }
-
-  const handlePermanentDelete = (id: string) => {
-    const success = assetStorage.permanentDeleteAsset(id)
-    if (success) {
-      setAssets(assetStorage.getLocalAssets())
-      setSyncStatus(assetStorage.getSyncStatus())
-      // 关闭所有对话框
-      setDetailDialogOpen(false)
-      setDeleteDialogOpen(false)
-      setSelectedAsset(null)
-    }
-  }
-
-  const handleAddAsset = (assetData: any) => {
-    const newAsset = assetStorage.addAsset({
-      name: assetData.name,
-      symbol: assetData.symbol.toUpperCase(),
-      logo: assetData.logo || '',
-      category: assetData.category,
-      currentPrice: parseFloat(assetData.purchasePrice),
-      purchasePrice: parseFloat(assetData.purchasePrice),
-      quantity: parseInt(assetData.quantity),
-      totalValue: parseFloat(assetData.purchasePrice) * parseInt(assetData.quantity),
-      totalCost: parseFloat(assetData.purchasePrice) * parseInt(assetData.quantity),
-      profitLoss: 0,
-      profitLossPercent: 0,
-      dayChange: 0,
-      dayChangePercent: 0,
-      allocation: 0,
-      lastUpdated: '刚刚',
-      riskLevel: assetData.riskLevel || 'medium'
-    })
-
-    setAssets(assetStorage.getLocalAssets())
-    setSyncStatus(assetStorage.getSyncStatus())
-  }
-
-  const handleSaveAsset = (id: string, updates: Partial<AssetData>) => {
-    const success = assetStorage.updateAsset(id, updates)
-    if (success) {
-      setAssets(assetStorage.getLocalAssets())
-      setSyncStatus(assetStorage.getSyncStatus())
-    }
-  }
-
-  const handleSellAsset = (id: string, sellData: any) => {
-    const success = assetStorage.sellAsset(id, {
-      sellPrice: parseFloat(sellData.sellPrice),
-      sellQuantity: parseInt(sellData.sellQuantity),
-      sellDate: sellData.sellDate,
-      notes: sellData.notes
-    })
-    
-    if (success) {
-      setAssets(assetStorage.getLocalAssets())
-      setSyncStatus(assetStorage.getSyncStatus())
-      setDetailDialogOpen(false) // 关闭详情对话框
-    }
-  }
-
-  const handleRefresh = async () => {
-    setIsLoading(true)
-    try {
-      // 使用 priceManager 更新价格，而不是随机模拟
-      const symbols = assets.map(asset => asset.symbol)
-      
-      // 更新价格数据（不会随机波动，只更新时间戳）
-      await priceManager.updatePricesFromAPI(symbols)
-      
-      // 重新计算资产价值和盈亏
-      const updatedAssets = assets.map(asset => {
-        // 获取最新价格数据
-        const priceData = priceManager.getAssetPriceData(asset.symbol)
-        // 如果没有价格数据，保持原价格
-        const currentPrice = priceData?.currentPrice || asset.currentPrice
-        
-        // 计算新的总价值和盈亏
-        const totalValue = currentPrice * asset.quantity
-        const profitLoss = totalValue - asset.totalCost
-        const profitLossPercent = asset.totalCost > 0 ? (profitLoss / asset.totalCost) * 100 : 0
-        
-        // 计算日涨跌
-        const dayChange = priceData?.change || 0
-        const dayChangePercent = priceData?.changePercent || 0
-        
-        return {
-          ...asset,
-          currentPrice,
-          totalValue,
-          profitLoss,
-          profitLossPercent,
-          dayChange,
-          dayChangePercent,
-          lastUpdated: '刚刚'
-        }
-      })
-      
-      // 保存更新后的数据
-      assetStorage.saveLocalAssets(updatedAssets)
-      setAssets(updatedAssets)
-      setSyncStatus(assetStorage.getSyncStatus())
-    } catch (error) {
-      console.error('刷新价格失败:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleViewModeChange = (mode: 'grid' | 'list') => {
-    setViewMode(mode)
-    // 保存用户偏好设置
-    settingsManager.updateSettings({ defaultView: mode })
-  }
+  const getAllocation = (asset: MvpAsset) => (summary.totalValue > 0 ? (asset.value / summary.totalValue) * 100 : 0)
 
   return (
-    <div className="space-y-8">
-      {/* 页面标题和操作区域 */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gradient-primary">资产管理</h1>
-          <p className="text-muted-foreground mt-2">
-            管理您的投资组合，跟踪资产表现
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleSyncFromCloud} 
-            disabled={isSyncing}
-          >
-            {isSyncing ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : syncStatus.needsSync ? (
-              <CloudOff className="h-4 w-4 mr-2" />
-            ) : (
-              <Cloud className="h-4 w-4 mr-2" />
-            )}
-            {isSyncing ? '同步中' : syncStatus.needsSync ? '需要同步' : '已同步'}
+    <PageShell>
+      <PageHeader
+        eyebrow="Assets"
+        title="资产管理"
+        description="跟踪持仓、市值、成本、收益与组合结构。"
+        actions={
+          <Button data-testid="asset-add-button" className="gap-2" onClick={openCreateDialog}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            添加资产
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setPriceDialogOpen(true)}>
-            <DollarSign className="h-4 w-4 mr-2" />
-            价格管理
-          </Button>
-          <ExportDialog assets={filteredAssets} />
-          <AddAssetDialog onAddAsset={handleAddAsset} />
-        </div>
-      </div>
+        }
+      />
 
-      {/* 总览统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="modern-card p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">总资产价值</span>
-            <Badge variant="secondary">{assets.length} 项</Badge>
-          </div>
-          <p className="text-2xl font-bold">{formatCurrency(totalValue)}</p>
-        </div>
-        <div className="modern-card p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">总投入成本</span>
-          </div>
-          <p className="text-2xl font-bold">{formatCurrency(totalCost)}</p>
-        </div>
-        <div className="modern-card p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">总盈亏</span>
-          </div>
-          <p className={`text-2xl font-bold ${getProfitLossColorClass(totalProfit)}`}>
-            {totalProfit >= 0 ? '+' : ''}{formatCurrency(totalProfit)}
-          </p>
-        </div>
-        <div className="modern-card p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">总收益率</span>
-          </div>
-          <p className={`text-2xl font-bold ${getProfitLossColorClass(totalProfitPercent)}`}>
-            {formatPercent(totalProfitPercent)}
-          </p>
-        </div>
-      </div>
+      <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MetricCard title="总市值" value={`¥${summary.totalValue.toLocaleString("zh-CN")}`} />
+        <MetricCard title="投入成本" value={`¥${summary.totalCost.toLocaleString("zh-CN")}`} />
+        <MetricCard
+          title="总收益"
+          value={`${summary.totalProfit >= 0 ? "+" : ""}¥${summary.totalProfit.toLocaleString("zh-CN")}`}
+          valueClassName={totalProfitClass}
+        />
+        <MetricCard
+          title="收益率"
+          value={`${summary.totalProfitPercent >= 0 ? "+" : ""}${summary.totalProfitPercent.toFixed(2)}%`}
+          valueClassName={totalProfitPercentClass}
+        />
+      </section>
 
-      {/* 搜索和筛选工具栏 */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="搜索资产名称或代码..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="分类" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部分类</SelectItem>
-              {categories.map(category => (
-                <SelectItem key={category} value={category}>{category}</SelectItem>
+      <SectionPanel eyebrow="Holdings" title="持仓清单" description={`${filteredAssets.length} / ${assets.length} 个资产`}>
+        <FilterToolbar
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="搜索资产或代码"
+          className="mb-4"
+          filters={
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部类别</SelectItem>
+                {categories.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          actions={
+            <div className="flex rounded-md border border-border bg-card p-1">
+              <Button
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setViewMode("grid")}
+                aria-label="网格视图"
+              >
+                <Grid3X3 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setViewMode("list")}
+                aria-label="列表视图"
+              >
+                <List className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          }
+        />
+
+        {filteredAssets.length > 0 ? (
+          viewMode === "grid" ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {filteredAssets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  allocation={getAllocation(asset)}
+                  colorConvention={colorConvention}
+                  onView={() => setViewTarget(asset)}
+                  onEdit={() => openEditDialog(asset)}
+                  onDelete={() => setDeleteTarget(asset)}
+                />
               ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="排序" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">按名称</SelectItem>
-              <SelectItem value="value">按价值</SelectItem>
-              <SelectItem value="profit">按盈亏</SelectItem>
-              <SelectItem value="change">按涨跌</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="flex items-center border rounded-lg">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => handleViewModeChange('grid')}
-              className="rounded-r-none"
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => handleViewModeChange('list')}
-              className="rounded-l-none"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* 资产列表 */}
-      <div className="space-y-6">
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <AssetCardSkeleton key={index} />
-            ))}
-          </div>
-        ) : filteredAssets.length > 0 ? (
-          viewMode === 'grid' ? (
-            <AssetGrid
-              assets={filteredAssets}
-              onView={handleAssetView}
-              onEdit={handleAssetEdit}
-              onDelete={handleAssetDelete}
-              onClick={handleAssetClick}
-            />
+            </div>
           ) : (
-            <AssetListView
-              assets={filteredAssets}
-              onView={handleAssetView}
-              onEdit={handleAssetEdit}
-              onDelete={handleAssetDelete}
-              onClick={handleAssetClick}
+            <ResponsiveDataView
+              table={
+                <AssetTable
+                  assets={filteredAssets}
+                  colorConvention={colorConvention}
+                  getAllocation={getAllocation}
+                  onView={setViewTarget}
+                  onEdit={openEditDialog}
+                  onDelete={setDeleteTarget}
+                />
+              }
+              cards={filteredAssets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  allocation={getAllocation(asset)}
+                  colorConvention={colorConvention}
+                  onView={() => setViewTarget(asset)}
+                  onEdit={() => openEditDialog(asset)}
+                  onDelete={() => setDeleteTarget(asset)}
+                />
+              ))}
             />
           )
         ) : (
-          <div className="text-center py-12">
-            <div className="text-muted-foreground mb-4">
-              <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg">未找到匹配的资产</p>
-              <p className="text-sm">尝试调整搜索条件或添加新的资产</p>
-            </div>
-            <AddAssetDialog 
-              onAddAsset={handleAddAsset}
-              trigger={
-                <Button className="mt-4">
-                  <Plus className="h-4 w-4 mr-2" />
-                  添加资产
-                </Button>
-              }
-            />
-          </div>
-        )}
-
-        {/* 资产详情对话框 */}
-        <AssetDetailDialog
-          asset={selectedAsset}
-          open={detailDialogOpen}
-          onOpenChange={setDetailDialogOpen}
-          onEdit={handleAssetEdit}
-          onDelete={handleAssetDelete}
-          onSell={(asset) => {
-            setSelectedAsset(asset);
-            setSellDialogOpen(true);
-          }}
-        />
-
-        {/* 卖出资产对话框 */}
-        <SellAssetDialog
-          asset={selectedAsset}
-          open={sellDialogOpen}
-          onOpenChange={setSellDialogOpen}
-          onSell={(sellData) => {
-            if (selectedAsset) {
-              handleSellAsset(selectedAsset.id, sellData);
+          <EmptyState
+            icon={Search}
+            title="没有找到资产"
+            description="调整搜索词或分类筛选，也可以直接添加一个新资产。"
+            action={
+              <Button data-testid="asset-empty-add-button" className="gap-2" onClick={openCreateDialog}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                添加资产
+              </Button>
             }
-          }}
-        />
+          />
+        )}
+      </SectionPanel>
 
-        {/* 资产编辑对话框 */}
-        <EditAssetDialog
-          asset={editingAsset}
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          onSave={handleSaveAsset}
-        />
+      <AssetEditorDialog
+        open={assetDialogOpen}
+        editingAsset={editingAsset}
+        form={form}
+        categories={categories}
+        onOpenChange={setAssetDialogOpen}
+        onFormChange={setForm}
+        onSubmit={handleSubmitAsset}
+      />
+      <AssetDetailDialog
+        asset={viewTarget}
+        allocation={viewTarget ? getAllocation(viewTarget) : 0}
+        colorConvention={colorConvention}
+        onOpenChange={(open) => !open && setViewTarget(null)}
+      />
+      <DeleteAssetDialog
+        asset={deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onConfirm={handleDeleteAsset}
+      />
+    </PageShell>
+  )
+}
 
-        {/* 价格管理对话框 */}
-        <PriceManagementDialog
-          assets={assets}
-          open={priceDialogOpen}
-          onOpenChange={setPriceDialogOpen}
-          onPriceUpdate={(updates: Array<{id: string, currentPrice: number}>) => {
-            // 批量更新资产价格
-            updates.forEach(update => {
-              const asset = assets.find(a => a.id === update.id);
-              if (asset) {
-                assetStorage.updateAsset(update.id, {
-                  currentPrice: update.currentPrice,
-                  totalValue: update.currentPrice * asset.quantity
-                });
-              }
-            });
-            setAssets(assetStorage.getLocalAssets());
-            setSyncStatus(assetStorage.getSyncStatus());
-          }}
-        />
+function AssetTable({
+  assets,
+  colorConvention,
+  getAllocation,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  assets: MvpAsset[]
+  colorConvention: ColorConvention
+  getAllocation: (asset: MvpAsset) => number
+  onView: (asset: MvpAsset) => void
+  onEdit: (asset: MvpAsset) => void
+  onDelete: (asset: MvpAsset) => void
+}) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>资产</TableHead>
+          <TableHead>类别</TableHead>
+          <TableHead className="text-right">市值</TableHead>
+          <TableHead className="text-right">累计收益</TableHead>
+          <TableHead className="text-right">组合占比</TableHead>
+          <TableHead className="text-right">操作</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {assets.map((asset) => {
+          const profit = asset.value - asset.cost
+          const profitPercent = asset.cost > 0 ? (profit / asset.cost) * 100 : 0
+          const changeClass = getChangeTextClass(profit, colorConvention)
 
-        {/* 删除确认对话框 */}
-        <DeleteConfirmationDialog
-          asset={selectedAsset}
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          onSoftDelete={handleSoftDelete}
-          onPermanentDelete={handlePermanentDelete}
-        />
+          return (
+            <TableRow key={asset.id}>
+              <TableCell>
+                <div className="font-medium text-foreground">{asset.name}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{asset.symbol}</div>
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline">{asset.category}</Badge>
+              </TableCell>
+              <TableCell className="text-right text-base">¥{asset.value.toLocaleString("zh-CN")}</TableCell>
+              <TableCell className={`text-right ${changeClass}`}>
+                <div>{profit >= 0 ? "+" : ""}¥{profit.toLocaleString("zh-CN")}</div>
+                <div className="text-xs">{profitPercent >= 0 ? "+" : ""}{profitPercent.toFixed(2)}%</div>
+              </TableCell>
+              <TableCell className="text-right">{getAllocation(asset).toFixed(1)}%</TableCell>
+              <TableCell>
+                <div className="flex justify-end gap-1">
+                  <IconButton label={`查看 ${asset.name}`} onClick={() => onView(asset)} icon={<Eye className="h-4 w-4" />} />
+                  <IconButton label={`编辑 ${asset.name}`} onClick={() => onEdit(asset)} icon={<Pencil className="h-4 w-4" />} />
+                  <IconButton label={`删除 ${asset.name}`} onClick={() => onDelete(asset)} icon={<Trash2 className="h-4 w-4" />} destructive />
+                </div>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+}
+
+function AssetCard({
+  asset,
+  allocation,
+  colorConvention,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  asset: MvpAsset
+  allocation: number
+  colorConvention: ColorConvention
+  onView: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const profit = asset.value - asset.cost
+  const profitPercent = asset.cost > 0 ? (profit / asset.cost) * 100 : 0
+  const changeClass = getChangeTextClass(profit, colorConvention)
+
+  return (
+    <article className="rounded-[1.05rem] border border-white/80 bg-card/78 p-4 shadow-sm backdrop-blur-xl transition-smooth hover:border-border-hover hover:shadow-md">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-base font-semibold text-foreground">{asset.name}</h3>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">{asset.symbol}</span>
+            <Badge variant="outline">{asset.category}</Badge>
+          </div>
+        </div>
+        <Badge variant="secondary">风险 {asset.risk}</Badge>
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Detail label="当前市值" value={`¥${asset.value.toLocaleString("zh-CN")}`} />
+        <Detail label="累计收益" value={`${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}`} valueClassName={changeClass} />
+        <Detail label="收益率" value={`${profitPercent >= 0 ? "+" : ""}${profitPercent.toFixed(2)}%`} valueClassName={changeClass} />
+        <Detail label="组合占比" value={`${allocation.toFixed(1)}%`} />
+      </div>
+
+      <div className="mt-4 h-1.5 rounded-full bg-muted" aria-label={`${asset.name} 组合占比 ${allocation.toFixed(1)}%`}>
+        <div className="h-1.5 rounded-full bg-foreground" style={{ width: `${Math.min(allocation, 100)}%` }} />
+      </div>
+
+      <div className="mt-3 flex justify-end gap-1">
+        <IconButton label={`查看 ${asset.name}`} onClick={onView} icon={<Eye className="h-4 w-4" />} />
+        <IconButton label={`编辑 ${asset.name}`} onClick={onEdit} icon={<Pencil className="h-4 w-4" />} />
+        <IconButton label={`删除 ${asset.name}`} onClick={onDelete} icon={<Trash2 className="h-4 w-4" />} destructive />
+      </div>
+    </article>
+  )
+}
+
+function AssetEditorDialog({
+  open,
+  editingAsset,
+  form,
+  categories,
+  onOpenChange,
+  onFormChange,
+  onSubmit,
+}: {
+  open: boolean
+  editingAsset: MvpAsset | null
+  form: AssetForm
+  categories: string[]
+  onOpenChange: (open: boolean) => void
+  onFormChange: (form: AssetForm) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}) {
+  const updateForm = <K extends keyof AssetForm>(key: K, value: AssetForm[K]) => {
+    onFormChange({ ...form, [key]: value })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="asset-editor-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{editingAsset ? "编辑资产" : "添加资产"}</DialogTitle>
+          <DialogDescription>记录资产名称、代码、市值、成本、当日变化与风险等级。</DialogDescription>
+        </DialogHeader>
+
+        <form className="grid gap-4" onSubmit={onSubmit}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="资产名称" required>
+              <Input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="沪深300 ETF" required />
+            </Field>
+            <Field label="代码" required>
+              <Input value={form.symbol} onChange={(event) => updateForm("symbol", event.target.value)} placeholder="510300" required />
+            </Field>
+            <Field label="类别">
+              <Select value={form.category} onValueChange={(value) => updateForm("category", value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="风险等级">
+              <Select value={form.risk} onValueChange={(value) => updateForm("risk", value as RiskLevel)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="低">低</SelectItem>
+                  <SelectItem value="中">中</SelectItem>
+                  <SelectItem value="高">高</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="当前市值" required>
+              <Input value={form.value} onChange={(event) => updateForm("value", event.target.value)} inputMode="decimal" placeholder="76840" required />
+            </Field>
+            <Field label="投入成本" required>
+              <Input value={form.cost} onChange={(event) => updateForm("cost", event.target.value)} inputMode="decimal" placeholder="72000" required />
+            </Field>
+            <Field label="今日变化">
+              <Input value={form.dayChange} onChange={(event) => updateForm("dayChange", event.target.value)} inputMode="decimal" placeholder="1260" />
+            </Field>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              取消
+            </Button>
+            <Button data-testid="asset-submit-button" type="submit">
+              {editingAsset ? "保存资产" : "添加资产"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AssetDetailDialog({
+  asset,
+  allocation,
+  colorConvention,
+  onOpenChange,
+}: {
+  asset: MvpAsset | null
+  allocation: number
+  colorConvention: ColorConvention
+  onOpenChange: (open: boolean) => void
+}) {
+  if (!asset) return null
+
+  const profit = asset.value - asset.cost
+  const profitPercent = asset.cost > 0 ? (profit / asset.cost) * 100 : 0
+  const changeClass = getChangeTextClass(profit, colorConvention)
+  const dayChangeClass = getChangeTextClass(asset.dayChange, colorConvention)
+
+  return (
+    <Dialog open={Boolean(asset)} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{asset.name}</DialogTitle>
+          <DialogDescription>
+            {asset.symbol} · {asset.category} · 风险 {asset.risk}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Detail label="当前市值" value={`¥${asset.value.toLocaleString("zh-CN")}`} />
+          <Detail label="投入成本" value={`¥${asset.cost.toLocaleString("zh-CN")}`} />
+          <Detail label="累计收益" value={`${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}`} valueClassName={changeClass} />
+          <Detail label="收益率" value={`${profitPercent >= 0 ? "+" : ""}${profitPercent.toFixed(2)}%`} valueClassName={changeClass} />
+          <Detail label="今日变化" value={`${asset.dayChange >= 0 ? "+" : ""}¥${asset.dayChange.toLocaleString("zh-CN")}`} valueClassName={dayChangeClass} />
+          <Detail label="组合占比" value={`${allocation.toFixed(1)}%`} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeleteAssetDialog({
+  asset,
+  onOpenChange,
+  onConfirm,
+}: {
+  asset: MvpAsset | null
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={Boolean(asset)} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>删除资产</DialogTitle>
+          <DialogDescription>
+            确认删除 {asset?.name}？这个操作会从本地资产列表中移除该记录。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            删除
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function Detail({ label, value, valueClassName }: { label: string; value: ReactNode; valueClassName?: string }) {
+  return (
+    <div>
+      <p className="label-tiny mb-2">{label}</p>
+      <p className={`font-tabular text-lg font-semibold ${valueClassName ?? "text-foreground"}`}>{value}</p>
     </div>
   )
 }
 
-export default function AssetsPage() {
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
-    <LocaleProvider>
-      <AssetsPageContent />
-    </LocaleProvider>
+    <div className="grid gap-2">
+      <Label>
+        {label}
+        {required ? <span className="ml-1 text-destructive">*</span> : null}
+      </Label>
+      {children}
+    </div>
+  )
+}
+
+function IconButton({
+  label,
+  icon,
+  onClick,
+  destructive,
+}: {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+  destructive?: boolean
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={`h-8 w-8 p-0 ${destructive ? "text-destructive hover:bg-destructive-light hover:text-destructive" : ""}`}
+      onClick={onClick}
+      aria-label={label}
+    >
+      {icon}
+    </Button>
   )
 }

@@ -1,0 +1,515 @@
+# AssetWise CI/CD Pipeline
+# 自动化构建、测试、安全扫描和部署流程
+
+name: AssetWise CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '选择部署环境'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '8'
+
+jobs:
+  # 代码质量检查和静态分析
+  code-quality:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-keys.outputs.cache-key }}
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 生成缓存键
+        id: cache-keys
+        run: |
+          echo "cache-key=node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}" >> $GITHUB_OUTPUT
+
+      - name: 缓存依赖
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pnpm-store
+            node_modules
+            .next/cache
+          key: ${{ steps.cache-keys.outputs.cache-key }}
+          restore-keys: |
+            node-modules-
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm run type-check
+
+      - name: 代码格式检查
+        run: pnpm run format:check
+
+      - name: ESLint 检查
+        run: pnpm run lint
+
+      - name: 安全依赖检查
+        run: pnpm audit --audit-level moderate
+
+      - name: 上传代码质量报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: code-quality-reports
+          path: |
+            eslint-report.json
+            type-check-report.txt
+
+  # 单元测试和集成测试
+  test:
+    name: 测试套件
+    runs-on: ubuntu-latest
+    needs: code-quality
+    strategy:
+      matrix:
+        test-type: [unit, integration]
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 恢复缓存
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pnpm-store
+            node_modules
+            .next/cache
+          key: ${{ needs.code-quality.outputs.cache-key }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 运行单元测试
+        if: matrix.test-type == 'unit'
+        run: |
+          pnpm run test:coverage
+          echo "UNIT_TEST_PASSED=true" >> $GITHUB_ENV
+
+      - name: 运行集成测试
+        if: matrix.test-type == 'integration'
+        run: |
+          pnpm run test:e2e
+          echo "INTEGRATION_TEST_PASSED=true" >> $GITHUB_ENV
+
+      - name: 上传测试覆盖率报告
+        uses: codecov/codecov-action@v3
+        if: matrix.test-type == 'unit'
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+      - name: 上传测试报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-reports-${{ matrix.test-type }}
+          path: |
+            coverage/
+            test-results/
+            playwright-report/
+
+  # 安全扫描
+  security-scan:
+    name: 安全扫描
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 运行 Trivy 漏洞扫描
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: 上传 Trivy 扫描结果到 GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: OWASP ZAP 基线扫描
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+  # 构建和优化
+  build:
+    name: 构建应用
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    strategy:
+      matrix:
+        target: [web, desktop]
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 设置 Rust (仅桌面版)
+        if: matrix.target == 'desktop'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 恢复缓存
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pnpm-store
+            node_modules
+            .next/cache
+            ~/.cargo
+            target/
+          key: ${{ needs.code-quality.outputs.cache-key }}-${{ matrix.target }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建 Web 应用
+        if: matrix.target == 'web'
+        env:
+          NODE_ENV: production
+        run: |
+          pnpm run build
+          echo "WEB_BUILD_COMPLETED=true" >> $GITHUB_ENV
+
+      - name: 构建桌面应用
+        if: matrix.target == 'desktop'
+        env:
+          NODE_ENV: production
+        run: |
+          pnpm run tauri:build
+          echo "DESKTOP_BUILD_COMPLETED=true" >> $GITHUB_ENV
+
+      - name: 优化构建产物
+        run: |
+          # 压缩静态资源
+          find .next/static -name "*.js" -exec gzip -9 {} \;
+          find .next/static -name "*.css" -exec gzip -9 {} \;
+          
+          # 生成构建报告
+          echo "Build size analysis:" > build-report.txt
+          du -sh .next >> build-report.txt
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts-${{ matrix.target }}
+          path: |
+            .next/
+            src-tauri/target/release/bundle/
+            build-report.txt
+          retention-days: 30
+
+  # 性能测试
+  performance-test:
+    name: 性能测试
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts-web
+
+      - name: 启动应用
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm start &
+          sleep 30
+          echo "APPLICATION_STARTED=true" >> $GITHUB_ENV
+
+      - name: Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: '.lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: 负载测试
+        run: |
+          npx artillery run performance/load-test.yml
+          echo "LOAD_TEST_COMPLETED=true" >> $GITHUB_ENV
+
+      - name: 上传性能报告
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-reports
+          path: |
+            lhci_reports/
+            artillery-report.json
+
+  # Docker 镜像构建
+  docker-build:
+    name: Docker 镜像构建
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录到 Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 提取元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 构建并推送 Docker 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # 部署到 Staging
+  deploy-staging:
+    name: 部署到 Staging
+    runs-on: ubuntu-latest
+    needs: [docker-build, performance-test]
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.assetwise.app
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 部署到 Vercel Staging
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--env NODE_ENV=staging'
+          alias-domains: |
+            staging.assetwise.app
+
+      - name: 部署数据库迁移
+        run: |
+          echo "Running database migrations for staging..."
+          # 这里添加数据库迁移命令
+
+      - name: 烟雾测试
+        run: |
+          sleep 30
+          curl -f https://staging.assetwise.app/health || exit 1
+          echo "STAGING_SMOKE_TEST_PASSED=true" >> $GITHUB_ENV
+
+      - name: 通知部署结果
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  # 部署到 Production
+  deploy-production:
+    name: 部署到 Production
+    runs-on: ubuntu-latest
+    needs: [docker-build, performance-test]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://assetwise.app
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 创建 GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          draft: false
+          prerelease: false
+          body: |
+            ## 🚀 AssetWise v${{ github.run_number }}
+            
+            ### ✨ 新功能
+            - 自动从 commit 消息提取
+            
+            ### 🐛 问题修复
+            - 自动从 commit 消息提取
+            
+            ### 📈 性能改进
+            - 自动从 commit 消息提取
+
+      - name: 部署到 Vercel Production
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod --env NODE_ENV=production'
+          alias-domains: |
+            assetwise.app
+            www.assetwise.app
+
+      - name: 部署数据库迁移
+        run: |
+          echo "Running database migrations for production..."
+          # 这里添加生产环境数据库迁移命令
+
+      - name: 健康检查
+        run: |
+          sleep 60
+          curl -f https://assetwise.app/health || exit 1
+          curl -f https://assetwise.app/api/health || exit 1
+          echo "PRODUCTION_HEALTH_CHECK_PASSED=true" >> $GITHUB_ENV
+
+      - name: 性能监控警报设置
+        run: |
+          echo "Setting up performance monitoring alerts..."
+          # 这里添加性能监控设置
+
+      - name: 通知部署成功
+        uses: 8398a7/action-slack@v3
+        if: success()
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "🎉 AssetWise v${{ github.run_number }} 已成功部署到生产环境！",
+              "attachments": [
+                {
+                  "color": "good",
+                  "fields": [
+                    {
+                      "title": "版本",
+                      "value": "v${{ github.run_number }}",
+                      "short": true
+                    },
+                    {
+                      "title": "环境",
+                      "value": "Production",
+                      "short": true
+                    },
+                    {
+                      "title": "URL",
+                      "value": "https://assetwise.app",
+                      "short": false
+                    }
+                  ]
+                }
+              ]
+            }
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  # 部署后监控
+  post-deployment-monitoring:
+    name: 部署后监控
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always() && (needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
+    
+    steps:
+      - name: 设置监控告警
+        run: |
+          echo "Setting up post-deployment monitoring..."
+          # 这里添加监控告警设置
+
+      - name: 用户体验监控
+        run: |
+          echo "Starting user experience monitoring..."
+          # 这里添加用户体验监控
+
+      - name: 错误率监控
+        run: |
+          echo "Monitoring error rates..."
+          # 这里添加错误率监控
+
+      - name: 性能指标收集
+        run: |
+          echo "Collecting performance metrics..."
+          # 这里添加性能指标收集

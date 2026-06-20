@@ -3,8 +3,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { getUserProfile } from '@/lib/auth'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/types/database-new.types'
+
+// Define getUserProfile locally since lib/auth is missing
+const getUserProfile = async (userId: string) => {
+  return supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single()
+}
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -47,12 +55,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession()
       setSession(session)
       setUser(session?.user ?? null)
-      
+
       if (session?.user) {
         const { data } = await getUserProfile(session.user.id)
         setProfile(data)
       }
-      
+
       setLoading(false)
     }
 
@@ -62,10 +70,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('认证状态变化:', event, session)
-        
+
         setSession(session)
         setUser(session?.user ?? null)
-        
+
         if (session?.user) {
           // 获取或创建用户档案
           const { data } = await getUserProfile(session.user.id)
@@ -81,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 full_name: session.user.user_metadata?.full_name || null,
                 username: session.user.user_metadata?.username || null
               })
-            
+
             if (!error) {
               const { data: newProfile } = await getUserProfile(session.user.id)
               setProfile(newProfile)
@@ -90,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setProfile(null)
         }
-        
+
         setLoading(false)
       }
     )
@@ -140,8 +148,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">需要登录</h1>
           <p className="text-gray-600 mb-8">请先登录以访问此页面</p>
-          <a 
-            href="/login" 
+          <a
+            href="/login"
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             前往登录

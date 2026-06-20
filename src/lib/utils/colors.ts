@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store';
+import { getStoredSettings, type ColorConvention } from '@/lib/mvp-store';
 
 // 盈亏颜色配置
 export const PROFIT_LOSS_COLORS = {
@@ -45,10 +47,25 @@ export const PROFIT_LOSS_COLORS = {
 // 获取盈亏颜色的Hook
 export function useProfitLossColors() {
   const { language } = useAppStore();
+  const fallbackConvention: ColorConvention = language === 'zh' ? 'chinese' : 'western';
+  const [colorConvention, setColorConvention] = useState<ColorConvention>(fallbackConvention);
+
+  useEffect(() => {
+    const loadSettings = () => setColorConvention(getStoredSettings().colorConvention);
+
+    loadSettings();
+    window.addEventListener('assetwise-settings-updated', loadSettings);
+    window.addEventListener('focus', loadSettings);
+
+    return () => {
+      window.removeEventListener('assetwise-settings-updated', loadSettings);
+      window.removeEventListener('focus', loadSettings);
+    };
+  }, []);
+
+  const colorScheme = colorConvention === 'chinese' ? PROFIT_LOSS_COLORS.zh : PROFIT_LOSS_COLORS.en;
   
   const getProfitLossColors = (value: number, includeNeutral: boolean = true) => {
-    const colorScheme = PROFIT_LOSS_COLORS[language as keyof typeof PROFIT_LOSS_COLORS] || PROFIT_LOSS_COLORS.zh;
-    
     if (value > 0) {
       return colorScheme.profit;
     } else if (value < 0) {
@@ -88,7 +105,7 @@ export function useProfitLossColors() {
   return {
     getProfitLossColors,
     getProfitLossColorClasses,
-    colorScheme: PROFIT_LOSS_COLORS[language as keyof typeof PROFIT_LOSS_COLORS] || PROFIT_LOSS_COLORS.zh
+    colorScheme
   };
 }
 

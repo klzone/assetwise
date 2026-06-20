@@ -76,11 +76,11 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     setMessage(null)
 
     try {
-      const result = await supabaseAuthService.signIn(loginData.email, loginData.password)
+      const result = await supabaseAuthService.signIn({ email: loginData.email, password: loginData.password })
       
-      if (result.success && result.data.user) {
+      if (result.user && !result.error) {
         setMessage('登录成功！')
-        setUser(result.data.user)
+        setUser(result.user)
         onSuccess?.()
         router.push('/dashboard')
       } else {
@@ -115,16 +115,14 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     }
 
     try {
-      const result = await supabaseAuthService.signUp(
-        registerData.email, 
-        registerData.password,
-        {
-          username: registerData.username,
-          full_name: registerData.fullName
-        }
-      )
+      const result = await supabaseAuthService.signUp({
+        email: registerData.email,
+        password: registerData.password,
+        username: registerData.username,
+        full_name: registerData.fullName
+      })
       
-      if (result.success) {
+      if (result.user && !result.error) {
         setMessage('注册成功！请检查您的邮箱以验证账户。')
         setActiveTab('login')
         // 清空注册表单
@@ -151,11 +149,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     setError(null)
     
     try {
-      const result = await supabaseAuthService.signInWithOAuth(provider)
-      if (!result.success) {
-        setError(result.error || `${provider} 登录失败`)
-      }
-      // OAuth 登录会重定向，不需要处理成功状态
+      // 暂时禁用 OAuth 登录功能
+      setError(`${provider} 登录功能暂未开放`)
     } catch (err) {
       console.error('OAuth 登录错误:', err)
       setError('OAuth 登录失败，请重试')

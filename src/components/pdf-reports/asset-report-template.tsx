@@ -233,8 +233,9 @@ export const AssetReportTemplate: React.FC<AssetReportTemplateProps> = ({
                 <Text style={styles.tableCellHeader}>盈亏</Text>
               </View>
               {data.assets.map((asset, index) => {
-                const costBasis = asset.quantity * asset.avg_cost;
-                const gainLoss = asset.market_value - costBasis;
+                const costBasis = asset.quantity * asset.average_price;
+                const marketValue = asset.total_value;
+                const gainLoss = marketValue - costBasis;
                 const gainLossPercentage = costBasis > 0
                   ? (gainLoss / costBasis) * 100
                   : 0;
@@ -245,13 +246,13 @@ export const AssetReportTemplate: React.FC<AssetReportTemplateProps> = ({
                     <Text style={styles.tableCell}>{asset.name}</Text>
                     <Text style={styles.tableCellNumber}>{asset.quantity}</Text>
                     <Text style={styles.tableCellNumber}>
-                      {formatCurrency(asset.avg_cost || 0)}
+                      {formatCurrency(asset.average_price || 0)}
                     </Text>
                     <Text style={styles.tableCellNumber}>
                       {formatCurrency(asset.current_price || 0)}
                     </Text>
                     <Text style={styles.tableCellNumber}>
-                      {formatCurrency(asset.market_value || 0)}
+                      {formatCurrency(marketValue || 0)}
                     </Text>
                     <Text style={[
                       styles.tableCellNumber,

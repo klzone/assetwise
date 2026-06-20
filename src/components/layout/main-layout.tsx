@@ -91,7 +91,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   ];
 
   // 旗舰版功能菜单项
-  const premiumMenuItems = user?.subscription_type === 'premium' ? [
+  const premiumMenuItems = user?.subscription_type === 'flagship' ? [
     {
       title: '系统监控',
       href: '/system-monitor',
@@ -279,10 +279,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
           <main className="flex-1 overflow-auto">
             <div className="container mx-auto p-6">
-              <ErrorBoundary
-                context={`page-${pathname}`}
-                userId={user?.id}
-              >
+              <ErrorBoundary context={`page-${pathname}`}>
                 {children}
               </ErrorBoundary>
             </div>

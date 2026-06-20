@@ -3,25 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// 使用单例模式创建Supabase客户端，避免重复创建
-let supabaseInstance: ReturnType<typeof createClient> | null = null
-
-export const createSupabaseClient = () => {
-  if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    })
-  }
-  return supabaseInstance
-}
-
-// 导出默认客户端实例
-export const supabase = createSupabaseClient()
-
 // 数据库类型定义 - 基于实际Supabase表结构
 export type Database = {
   public: {
@@ -255,7 +236,7 @@ export type Database = {
           id?: string
           user_id?: string
           account_id?: string | null
-          type?: 'buy' | 'sell' | 'dividend' | 'deposit' | 'withdraw' | 'split' | 'merge' | 'bonus' | 'rights'
+          type: 'buy' | 'sell' | 'dividend' | 'deposit' | 'withdraw' | 'split' | 'merge' | 'bonus' | 'rights'
           symbol?: string | null
           name?: string | null
           quantity?: number | null
@@ -386,6 +367,25 @@ export type Database = {
     }
   }
 }
+
+// 使用单例模式创建Supabase客户端，避免重复创建
+let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null
+
+export const createSupabaseClient = () => {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
+  }
+  return supabaseInstance
+}
+
+// 导出默认客户端实例
+export const supabase = createSupabaseClient()
 
 // 类型化的Supabase客户端
 export type TypedSupabaseClient = ReturnType<typeof createClient<Database>>

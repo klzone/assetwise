@@ -1,4 +1,11 @@
 import { useAppStore } from '@/store';
+import { getStoredSettings, type ColorConvention } from '@/lib/mvp-store';
+
+function resolveColorConvention(language: 'zh' | 'en'): ColorConvention {
+  if (typeof window === 'undefined') return language === 'zh' ? 'chinese' : 'western';
+
+  return getStoredSettings().colorConvention;
+}
 
 /**
  * 根据语言设置获取盈亏颜色类名
@@ -7,26 +14,27 @@ import { useAppStore } from '@/store';
  */
 export function useProfitLossColors() {
   const { language } = useAppStore();
+  const colorConvention = resolveColorConvention(language);
   
-  if (language === 'zh') {
+  if (colorConvention === 'chinese') {
     // 中文：红涨绿跌
     return {
-      profit: 'text-red-600',
-      loss: 'text-green-600',
-      profitBg: 'bg-red-50 text-red-700',
-      lossBg: 'bg-green-50 text-green-700',
-      profitBorder: 'border-red-200',
-      lossBorder: 'border-green-200'
+      profit: 'text-destructive',
+      loss: 'text-success',
+      profitBg: 'bg-destructive-light text-destructive',
+      lossBg: 'bg-success-light text-success',
+      profitBorder: 'border-destructive/30',
+      lossBorder: 'border-success/30'
     };
   } else {
     // 英文：绿涨红跌
     return {
-      profit: 'text-green-600',
-      loss: 'text-red-600',
-      profitBg: 'bg-green-50 text-green-700',
-      lossBg: 'bg-red-50 text-red-700',
-      profitBorder: 'border-green-200',
-      lossBorder: 'border-red-200'
+      profit: 'text-success',
+      loss: 'text-destructive',
+      profitBg: 'bg-success-light text-success',
+      lossBg: 'bg-destructive-light text-destructive',
+      profitBorder: 'border-success/30',
+      lossBorder: 'border-destructive/30'
     };
   }
 }
@@ -35,25 +43,27 @@ export function useProfitLossColors() {
  * 获取盈亏颜色类名（非Hook版本，用于非组件环境）
  */
 export function getProfitLossColors(language: 'zh' | 'en') {
-  if (language === 'zh') {
+  const colorConvention = resolveColorConvention(language);
+
+  if (colorConvention === 'chinese') {
     // 中文：红涨绿跌
     return {
-      profit: 'text-red-600',
-      loss: 'text-green-600',
-      profitBg: 'bg-red-50 text-red-700',
-      lossBg: 'bg-green-50 text-green-700',
-      profitBorder: 'border-red-200',
-      lossBorder: 'border-green-200'
+      profit: 'text-destructive',
+      loss: 'text-success',
+      profitBg: 'bg-destructive-light text-destructive',
+      lossBg: 'bg-success-light text-success',
+      profitBorder: 'border-destructive/30',
+      lossBorder: 'border-success/30'
     };
   } else {
     // 英文：绿涨红跌
     return {
-      profit: 'text-green-600',
-      loss: 'text-red-600',
-      profitBg: 'bg-green-50 text-green-700',
-      lossBg: 'bg-red-50 text-red-700',
-      profitBorder: 'border-green-200',
-      lossBorder: 'border-red-200'
+      profit: 'text-success',
+      loss: 'text-destructive',
+      profitBg: 'bg-success-light text-success',
+      lossBg: 'bg-destructive-light text-destructive',
+      profitBorder: 'border-success/30',
+      lossBorder: 'border-destructive/30'
     };
   }
 }

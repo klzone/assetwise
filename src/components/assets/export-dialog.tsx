@@ -101,7 +101,7 @@ export function ExportDialog({ assets, trigger }: ExportDialogProps) {
 
   const generateJSON = (data: AssetData[], fields: ExportField[]) => {
     const filteredData = data.map(asset => {
-      const filtered: Partial<AssetData> = {}
+      const filtered: Partial<Record<ExportField, AssetData[ExportField]>> = {}
       fields.forEach(field => {
         filtered[field] = asset[field]
       })
@@ -276,7 +276,7 @@ export function ExportDialog({ assets, trigger }: ExportDialogProps) {
                   <Checkbox
                     id="includeCharts"
                     checked={includeCharts}
-                    onCheckedChange={setIncludeCharts}
+                    onCheckedChange={(checked) => setIncludeCharts(checked === true)}
                   />
                   <Label htmlFor="includeCharts" className="text-sm">
                     包含图表
@@ -286,7 +286,7 @@ export function ExportDialog({ assets, trigger }: ExportDialogProps) {
                   <Checkbox
                     id="includeSummary"
                     checked={includeSummary}
-                    onCheckedChange={setIncludeSummary}
+                    onCheckedChange={(checked) => setIncludeSummary(checked === true)}
                   />
                   <Label htmlFor="includeSummary" className="text-sm">
                     包含汇总信息

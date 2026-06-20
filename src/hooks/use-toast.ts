@@ -190,4 +190,28 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+// 简化的toast函数
+const simpleToast = {
+  success: (message: string) => {
+    toast({
+      title: "成功",
+      description: message,
+      variant: "success",
+    })
+  },
+  error: (message: string) => {
+    toast({
+      title: "错误",
+      description: message,
+      variant: "destructive",
+    })
+  },
+  info: (message: string) => {
+    toast({
+      title: "信息",
+      description: message,
+    })
+  },
+}
+
+export { useToast, toast, simpleToast }

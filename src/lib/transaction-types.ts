@@ -12,11 +12,15 @@ export enum TransactionType {
 export interface Transaction {
   id: string;            // 交易ID
   assetId: string;       // 关联资产ID
+  assetName?: string;    // 资产名称（用于显示）
+  assetSymbol?: string;  // 资产代码（用于显示）
   type: TransactionType; // 交易类型
   price: number;         // 交易价格
   quantity: number;      // 交易数量
   date: Date;            // 交易日期
   totalAmount: number;   // 交易总额
+  profit?: number;       // 交易盈亏（仅卖出交易）
+  profitRate?: number;   // 盈亏比例（仅卖出交易）
   notes?: string;        // 交易备注
   createdAt: Date;       // 创建时间
 }

@@ -1,0 +1,373 @@
+# AssetWise Kubernetes 部署配置
+# 支持高可用、自动扩缩容和滚动更新
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: assetwise
+  labels:
+    name: assetwise
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: assetwise-config
+  namespace: assetwise
+data:
+  NODE_ENV: "production"
+  NEXT_TELEMETRY_DISABLED: "1"
+  PORT: "3000"
+
+---
+# Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: assetwise-secrets
+  namespace: assetwise
+type: Opaque
+data:
+  # Base64 encoded values
+  NEXTAUTH_SECRET: "" # echo -n "your-secret" | base64
+  SUPABASE_SERVICE_ROLE_KEY: "" # echo -n "your-key" | base64
+  DATABASE_URL: "" # echo -n "your-db-url" | base64
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assetwise-app
+  namespace: assetwise
+  labels:
+    app: assetwise
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: assetwise
+  template:
+    metadata:
+      labels:
+        app: assetwise
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/api/metrics"
+    spec:
+      containers:
+      - name: assetwise
+        image: ghcr.io/your-org/assetwise:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: assetwise-config
+              key: NODE_ENV
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: assetwise-config
+              key: PORT
+        - name: NEXTAUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: assetwise-secrets
+              key: NEXTAUTH_SECRET
+        - name: SUPABASE_SERVICE_ROLE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: assetwise-secrets
+              key: SUPABASE_SERVICE_ROLE_KEY
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: assetwise-secrets
+              key: DATABASE_URL
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-cache
+          mountPath: /var/cache
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: var-cache
+        emptyDir: {}
+      securityContext:
+        fsGroup: 1001
+      serviceAccountName: assetwise-app
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: assetwise-app
+  namespace: assetwise
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: assetwise-service
+  namespace: assetwise
+  labels:
+    app: assetwise
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: assetwise
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: assetwise-hpa
+  namespace: assetwise
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: assetwise-app
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: assetwise-ingress
+  namespace: assetwise
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+  - hosts:
+    - assetwise.app
+    - www.assetwise.app
+    secretName: assetwise-tls
+  rules:
+  - host: assetwise.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: assetwise-service
+            port:
+              number: 80
+  - host: www.assetwise.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: assetwise-service
+            port:
+              number: 80
+
+---
+# Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: assetwise-network-policy
+  namespace: assetwise
+spec:
+  podSelector:
+    matchLabels:
+      app: assetwise
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: assetwise-pdb
+  namespace: assetwise
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: assetwise
+
+---
+# Service Monitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: assetwise-metrics
+  namespace: assetwise
+  labels:
+    app: assetwise
+spec:
+  selector:
+    matchLabels:
+      app: assetwise
+  endpoints:
+  - port: http
+    path: /api/metrics
+    interval: 30s
+    scrapeTimeout: 10s
+
+---
+# PrometheusRule for Alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: assetwise-alerts
+  namespace: assetwise
+  labels:
+    app: assetwise
+spec:
+  groups:
+  - name: assetwise.rules
+    rules:
+    - alert: AssetWiseDown
+      expr: up{job="assetwise-metrics"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "AssetWise application is down"
+        description: "AssetWise application has been down for more than 1 minute."
+    
+    - alert: AssetWiseHighErrorRate
+      expr: rate(http_requests_total{job="assetwise-metrics",status=~"5.."}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate in AssetWise"
+        description: "AssetWise error rate is {{ $value }} errors per second."
+    
+    - alert: AssetWiseHighMemoryUsage
+      expr: container_memory_usage_bytes{pod=~"assetwise-.*"} / container_spec_memory_limit_bytes > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage in AssetWise"
+        description: "AssetWise memory usage is above 90%."
+    
+    - alert: AssetWiseHighCPUUsage
+      expr: rate(container_cpu_usage_seconds_total{pod=~"assetwise-.*"}[5m]) / container_spec_cpu_quota * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage in AssetWise"
+        description: "AssetWise CPU usage is above 80%."

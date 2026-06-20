@@ -1,643 +1,670 @@
 "use client"
 
-import React, { useState } from 'react'
-import { 
-  Target,
-  Calendar,
-  DollarSign,
-  TrendingUp,
-  PieChart,
-  BarChart3,
-  Plus,
-  Edit,
-  Trash2,
-  Play,
-  Pause,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  Filter,
-  Search,
-  Settings,
-  BookOpen,
-  Lightbulb,
-  Flag
-} from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { PageTransition, CardEnterAnimation, FadeInAnimation } from '@/components/ui/page-transition'
-import { AnimatedCounter } from '@/components/ui/animated-counter'
+import type { ReactNode } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { AlertTriangle, Archive, CheckCircle, Eye, Pause, Plus, RotateCcw, ShieldAlert, Target } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { EmptyState, FilterToolbar, MetricCard, PageHeader, PageShell, SectionPanel } from "@/components/ui/workspace"
+import {
+  calculatePlanStats,
+  createPlanFromTemplate,
+  getPlanTypeMeta,
+  getStatusLabel,
+  getStoredInvestmentPlans,
+  getStoredPlanTransactions,
+  planTemplates,
+  refreshPlanExecutionStats,
+  saveStoredInvestmentPlans,
+  type InvestmentPlan,
+  type InvestmentPlanStatus,
+  type InvestmentPlanType,
+  type PlanLinkedTransaction,
+} from "@/lib/investment-plans"
 
-interface InvestmentPlan {
-  id: string
-  title: string
-  description: string
-  status: 'active' | 'paused' | 'completed' | 'draft'
-  priority: 'high' | 'medium' | 'low'
-  targetAmount: number
-  currentAmount: number
-  startDate: string
-  endDate: string
-  expectedReturn: number
-  riskLevel: 'low' | 'medium' | 'high'
-  category: string
-  assets: Array<{
-    name: string
-    allocation: number
-    currentPrice: number
-    targetPrice: number
-  }>
-  milestones: Array<{
-    title: string
-    targetDate: string
-    completed: boolean
-    description: string
-  }>
-  notes: string
-  createdAt: string
-  updatedAt: string
-}
+const editableStatuses: InvestmentPlanStatus[] = ["draft", "active", "paused", "completed", "invalidated", "archived"]
 
 export default function PlansPage() {
-  const [activeTab, setActiveTab] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [sortBy, setSortBy] = useState('priority')
+  const [plans, setPlans] = useState<InvestmentPlan[]>([])
+  const [transactions, setTransactions] = useState<PlanLinkedTransaction[]>([])
+  const [typeFilter, setTypeFilter] = useState<"all" | InvestmentPlanType>("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | InvestmentPlanStatus>("all")
+  const [query, setQuery] = useState("")
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<InvestmentPlan | null>(null)
+  const [detailPlan, setDetailPlan] = useState<InvestmentPlan | null>(null)
 
-  // 模拟投资计划数据
-  const investmentPlans: InvestmentPlan[] = [
-    {
-      id: '1',
-      title: '科技股长期投资计划',
-      description: '专注于优质科技股的长期价值投资，目标是在3年内实现30%的年化收益率',
-      status: 'active',
-      priority: 'high',
-      targetAmount: 500000,
-      currentAmount: 320000,
-      startDate: '2024-01-01',
-      endDate: '2026-12-31',
-      expectedReturn: 30,
-      riskLevel: 'medium',
-      category: '股票投资',
-      assets: [
-        { name: '腾讯控股', allocation: 30, currentPrice: 320, targetPrice: 450 },
-        { name: '阿里巴巴', allocation: 25, currentPrice: 85, targetPrice: 120 },
-        { name: '美团', allocation: 20, currentPrice: 180, targetPrice: 250 },
-        { name: '小米集团', allocation: 15, currentPrice: 12, targetPrice: 18 },
-        { name: '现金储备', allocation: 10, currentPrice: 1, targetPrice: 1 }
-      ],
-      milestones: [
-        {
-          title: '完成初始建仓',
-          targetDate: '2024-03-31',
-          completed: true,
-          description: '按计划配置完成各标的初始仓位'
-        },
-        {
-          title: '达到50%目标金额',
-          targetDate: '2024-12-31',
-          completed: false,
-          description: '投资金额达到25万元'
-        },
-        {
-          title: '中期评估调整',
-          targetDate: '2025-06-30',
-          completed: false,
-          description: '根据市场情况调整投资组合'
-        },
-        {
-          title: '完成投资目标',
-          targetDate: '2026-12-31',
-          completed: false,
-          description: '达到50万元投资目标'
-        }
-      ],
-      notes: '重点关注公司基本面变化，定期调整仓位配置。注意控制单一标的风险。',
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-15'
-    },
-    {
-      id: '2',
-      title: '稳健收益债券计划',
-      description: '通过投资优质债券和债券基金，获得稳定的固定收益',
-      status: 'active',
-      priority: 'medium',
-      targetAmount: 200000,
-      currentAmount: 150000,
-      startDate: '2024-02-01',
-      endDate: '2025-02-01',
-      expectedReturn: 8,
-      riskLevel: 'low',
-      category: '固收投资',
-      assets: [
-        { name: '国债ETF', allocation: 40, currentPrice: 102, targetPrice: 105 },
-        { name: '企业债基金', allocation: 35, currentPrice: 1.15, targetPrice: 1.25 },
-        { name: '可转债', allocation: 20, currentPrice: 110, targetPrice: 130 },
-        { name: '货币基金', allocation: 5, currentPrice: 1, targetPrice: 1 }
-      ],
-      milestones: [
-        {
-          title: '完成债券配置',
-          targetDate: '2024-04-30',
-          completed: true,
-          description: '按计划完成各类债券投资'
-        },
-        {
-          title: '达到目标收益率',
-          targetDate: '2024-12-31',
-          completed: false,
-          description: '年化收益率达到8%'
-        }
-      ],
-      notes: '重点关注利率变化对债券价格的影响，适时调整久期配置。',
-      createdAt: '2024-02-01',
-      updatedAt: '2024-01-15'
-    },
-    {
-      id: '3',
-      title: '海外市场分散投资',
-      description: '通过投资海外ETF和QDII基金，实现全球资产配置',
-      status: 'draft',
-      priority: 'low',
-      targetAmount: 300000,
-      currentAmount: 0,
-      startDate: '2024-03-01',
-      endDate: '2027-03-01',
-      expectedReturn: 12,
-      riskLevel: 'medium',
-      category: '海外投资',
-      assets: [
-        { name: '标普500ETF', allocation: 40, currentPrice: 450, targetPrice: 550 },
-        { name: '纳斯达克ETF', allocation: 30, currentPrice: 380, targetPrice: 480 },
-        { name: '欧洲股票基金', allocation: 20, currentPrice: 1.2, targetPrice: 1.5 },
-        { name: '新兴市场基金', allocation: 10, currentPrice: 0.8, targetPrice: 1.1 }
-      ],
-      milestones: [
-        {
-          title: '开通海外投资账户',
-          targetDate: '2024-02-29',
-          completed: false,
-          description: '完成QDII账户开通和资金准备'
-        },
-        {
-          title: '开始定投计划',
-          targetDate: '2024-03-31',
-          completed: false,
-          description: '启动定期投资计划'
-        }
-      ],
-      notes: '需要关注汇率风险和海外市场政策变化。',
-      createdAt: '2024-01-10',
-      updatedAt: '2024-01-15'
-    }
-  ]
-
-  // 统计数据
-  const stats = {
-    totalPlans: investmentPlans.length,
-    activePlans: investmentPlans.filter(p => p.status === 'active').length,
-    totalTarget: investmentPlans.reduce((sum, p) => sum + p.targetAmount, 0),
-    totalCurrent: investmentPlans.reduce((sum, p) => sum + p.currentAmount, 0),
-    avgProgress: investmentPlans.reduce((sum, p) => sum + (p.currentAmount / p.targetAmount * 100), 0) / investmentPlans.length
+  const loadPlans = () => {
+    const storedTransactions = getStoredPlanTransactions()
+    const storedPlans = refreshPlanExecutionStats(getStoredInvestmentPlans(), storedTransactions)
+    setTransactions(storedTransactions)
+    setPlans(storedPlans)
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'active': return <Play className="h-4 w-4 text-green-500" />
-      case 'paused': return <Pause className="h-4 w-4 text-yellow-500" />
-      case 'completed': return <CheckCircle className="h-4 w-4 text-blue-500" />
-      case 'draft': return <Clock className="h-4 w-4 text-gray-500" />
-      default: return <AlertTriangle className="h-4 w-4 text-red-500" />
+  useEffect(() => {
+    loadPlans()
+    window.addEventListener("assetwise-plans-updated", loadPlans)
+    window.addEventListener("assetwise-transactions-updated", loadPlans)
+    return () => {
+      window.removeEventListener("assetwise-plans-updated", loadPlans)
+      window.removeEventListener("assetwise-transactions-updated", loadPlans)
     }
+  }, [])
+
+  const filteredPlans = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+
+    return plans.filter((plan) => {
+      const matchesType = typeFilter === "all" || plan.planType === typeFilter
+      const matchesStatus = statusFilter === "all" || plan.status === statusFilter
+      const matchesQuery =
+        !normalizedQuery ||
+        plan.title.toLowerCase().includes(normalizedQuery) ||
+        plan.objective.toLowerCase().includes(normalizedQuery) ||
+        plan.thesis.toLowerCase().includes(normalizedQuery) ||
+        plan.assets.some((asset) => asset.name.toLowerCase().includes(normalizedQuery) || asset.symbol.toLowerCase().includes(normalizedQuery))
+
+      return matchesType && matchesStatus && matchesQuery
+    })
+  }, [plans, query, statusFilter, typeFilter])
+
+  const stats = calculatePlanStats(plans, transactions)
+
+  const persistPlans = (nextPlans: InvestmentPlan[]) => {
+    const refreshed = refreshPlanExecutionStats(nextPlans, transactions)
+    setPlans(refreshed)
+    saveStoredInvestmentPlans(refreshed)
   }
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      active: 'default',
-      paused: 'secondary',
-      completed: 'outline',
-      draft: 'secondary'
-    } as const
-    
-    const labels = {
-      active: '进行中',
-      paused: '暂停',
-      completed: '已完成',
-      draft: '草稿'
-    }
-    
-    return (
-      <Badge variant={variants[status as keyof typeof variants] || 'secondary'}>
-        {labels[status as keyof typeof labels] || status}
-      </Badge>
-    )
+  const openCreateDialog = () => {
+    setEditingPlan(createPlanFromTemplate("dca"))
+    setDialogOpen(true)
   }
 
-  const getPriorityBadge = (priority: string) => {
-    const variants = {
-      high: 'destructive',
-      medium: 'default',
-      low: 'secondary'
-    } as const
-    
-    const labels = {
-      high: '高优先级',
-      medium: '中优先级',
-      low: '低优先级'
-    }
-    
-    return (
-      <Badge variant={variants[priority as keyof typeof variants] || 'secondary'}>
-        {labels[priority as keyof typeof labels] || priority}
-      </Badge>
-    )
+  const openEditDialog = (plan: InvestmentPlan) => {
+    setEditingPlan(plan)
+    setDialogOpen(true)
   }
 
-  const getRiskBadge = (risk: string) => {
-    const variants = {
-      high: 'destructive',
-      medium: 'default',
-      low: 'secondary'
-    } as const
-    
-    const labels = {
-      high: '高风险',
-      medium: '中风险',
-      low: '低风险'
-    }
-    
-    return (
-      <Badge variant={variants[risk as keyof typeof variants] || 'secondary'}>
-        {labels[risk as keyof typeof labels] || risk}
-      </Badge>
-    )
+  const handleSavePlan = (plan: InvestmentPlan) => {
+    const timestamp = new Date().toISOString()
+    const nextPlan = { ...plan, updatedAt: timestamp }
+    const exists = plans.some((item) => item.id === nextPlan.id)
+    const nextPlans = exists
+      ? plans.map((item) => (item.id === nextPlan.id ? nextPlan : item))
+      : [{ ...nextPlan, createdAt: timestamp }, ...plans]
+
+    persistPlans(nextPlans)
+    setDialogOpen(false)
+    setEditingPlan(null)
   }
 
-  const filteredPlans = investmentPlans.filter(plan => {
-    const matchesSearch = plan.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         plan.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         plan.category.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filterStatus === 'all' || plan.status === filterStatus
-    return matchesSearch && matchesFilter
-  })
+  const updatePlanStatus = (plan: InvestmentPlan, status: InvestmentPlanStatus) => {
+    persistPlans(plans.map((item) => (item.id === plan.id ? { ...item, status, updatedAt: new Date().toISOString() } : item)))
+  }
+
+  const archivePlan = (plan: InvestmentPlan) => updatePlanStatus(plan, "archived")
 
   return (
-    <PageTransition>
-      <div className="space-y-8">
-        {/* 页面标题区域 */}
-        <FadeInAnimation delay={0}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gradient-primary">投资计划</h1>
-              <p className="text-muted-foreground mt-2">
-                制定投资目标，跟踪执行进度
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="glass-effect">
-                <Settings className="h-4 w-4 mr-2" />
-                计划设置
-              </Button>
-              <Button size="sm" className="bg-primary hover:bg-primary-hover">
-                <Plus className="h-4 w-4 mr-2" />
-                新建计划
-              </Button>
-            </div>
-          </div>
-        </FadeInAnimation>
+    <PageShell>
+      <PageHeader
+        eyebrow="Plans"
+        title="投资计划"
+        description="交易前写清楚假设、仓位、触发条件和退出规则；交易后检查是否符合计划。"
+        actions={
+          <Button className="gap-2" onClick={openCreateDialog}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            新建计划
+          </Button>
+        }
+      />
 
-        {/* 统计概览 */}
-        <CardEnterAnimation delay={100}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            <Card className="modern-card-hover">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">总计划数</p>
-                    <div className="text-2xl font-bold">
-                      <AnimatedCounter value={stats.totalPlans} />
-                    </div>
-                  </div>
-                  <Target className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
+      <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MetricCard title="执行中计划" value={stats.activePlans} detail={`${stats.totalPlans} 个总计划`} />
+        <MetricCard title="待复盘提醒" value={stats.dueReviews} tone={stats.dueReviews > 0 ? "warning" : "default"} />
+        <MetricCard title="偏离规则交易" value={stats.violatedTransactions} tone={stats.violatedTransactions > 0 ? "negative" : "default"} />
+        <MetricCard title="目标金额" value={`¥${stats.totalTargetAmount.toLocaleString("zh-CN")}`} detail={`已执行 ¥${stats.totalInvestedAmount.toLocaleString("zh-CN")}`} />
+      </section>
 
-            <Card className="modern-card-hover">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">活跃计划</p>
-                    <div className="text-2xl font-bold text-green-600">
-                      <AnimatedCounter value={stats.activePlans} />
-                    </div>
-                  </div>
-                  <Play className="h-8 w-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
+      <SectionPanel eyebrow="Discipline Center" title="计划工作台" description={`${filteredPlans.length} 个计划`}>
+        <FilterToolbar
+          className="mb-4"
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="搜索计划、资产或假设"
+          filters={
+            <>
+              <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as "all" | InvestmentPlanType)}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部类型</SelectItem>
+                  {planTemplates.map((template) => (
+                    <SelectItem key={template.type} value={template.type}>
+                      {template.shortLabel}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | InvestmentPlanStatus)}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  {editableStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {getStatusLabel(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          }
+        />
 
-            <Card className="modern-card-hover">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">目标金额</p>
-                    <div className="text-2xl font-bold text-blue-600">
-                      <AnimatedCounter 
-                        value={stats.totalTarget} 
-                        prefix="¥" 
-                        format="currency"
-                      />
-                    </div>
-                  </div>
-                  <Flag className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="modern-card-hover">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">当前金额</p>
-                    <div className="text-2xl font-bold text-purple-600">
-                      <AnimatedCounter 
-                        value={stats.totalCurrent} 
-                        prefix="¥" 
-                        format="currency"
-                      />
-                    </div>
-                  </div>
-                  <DollarSign className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="modern-card-hover">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">平均进度</p>
-                    <div className="text-2xl font-bold text-orange-600">
-                      <AnimatedCounter value={stats.avgProgress} suffix="%" decimals={1} />
-                    </div>
-                  </div>
-                  <BarChart3 className="h-8 w-8 text-orange-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardEnterAnimation>
-
-        {/* 搜索和筛选 */}
-        <CardEnterAnimation delay={200}>
-          <Card className="modern-card">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="搜索投资计划..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部状态</SelectItem>
-                      <SelectItem value="active">进行中</SelectItem>
-                      <SelectItem value="paused">暂停</SelectItem>
-                      <SelectItem value="completed">已完成</SelectItem>
-                      <SelectItem value="draft">草稿</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="priority">按优先级</SelectItem>
-                      <SelectItem value="progress">按进度</SelectItem>
-                      <SelectItem value="amount">按金额</SelectItem>
-                      <SelectItem value="date">按日期</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </CardEnterAnimation>
-
-        {/* 投资计划列表 */}
-        <CardEnterAnimation delay={300}>
-          <div className="space-y-6">
-            {filteredPlans.map((plan, index) => (
-              <Card key={plan.id} className="modern-card-hover">
-                <CardContent className="p-6">
-                  <div className="space-y-6">
-                    {/* 头部信息 */}
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                          {getStatusIcon(plan.status)}
-                          <h3 className="text-xl font-semibold">{plan.title}</h3>
-                          {getStatusBadge(plan.status)}
-                          {getPriorityBadge(plan.priority)}
-                          {getRiskBadge(plan.riskLevel)}
-                        </div>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {plan.description}
-                        </p>
-                        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {plan.startDate} - {plan.endDate}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <BookOpen className="h-4 w-4" />
-                            {plan.category}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <TrendingUp className="h-4 w-4" />
-                            预期收益 {plan.expectedReturn}%
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* 进度和金额 */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">投资进度</span>
-                          <span className="font-medium">
-                            {((plan.currentAmount / plan.targetAmount) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(plan.currentAmount / plan.targetAmount) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">当前金额</div>
-                        <div className="text-lg font-semibold text-purple-600">
-                          ¥{plan.currentAmount.toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">目标金额</div>
-                        <div className="text-lg font-semibold text-blue-600">
-                          ¥{plan.targetAmount.toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 资产配置 */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-muted-foreground">资产配置</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {plan.assets.map((asset, assetIndex) => (
-                          <div key={assetIndex} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <div className="space-y-1">
-                              <div className="text-sm font-medium">{asset.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                配置 {asset.allocation}%
-                              </div>
-                            </div>
-                            <div className="text-right space-y-1">
-                              <div className="text-sm font-medium">
-                                ¥{asset.currentPrice}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                目标 ¥{asset.targetPrice}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 里程碑 */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-muted-foreground">执行里程碑</h4>
-                      <div className="space-y-3">
-                        {plan.milestones.map((milestone, milestoneIndex) => (
-                          <div key={milestoneIndex} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
-                            <div className="mt-1">
-                              {milestone.completed ? (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </div>
-                            <div className="flex-1 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className={`text-sm font-medium ${
-                                  milestone.completed ? 'text-green-600' : 'text-foreground'
-                                }`}>
-                                  {milestone.title}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {milestone.targetDate}
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {milestone.description}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 备注 */}
-                    {plan.notes && (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          <Lightbulb className="h-4 w-4" />
-                          计划备注
-                        </h4>
-                        <p className="text-sm leading-relaxed p-3 bg-muted/30 rounded-lg">
-                          {plan.notes}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* 操作按钮 */}
-                    <div className="flex items-center gap-3 pt-3 border-t">
-                      {plan.status === 'active' ? (
-                        <Button variant="outline" size="sm">
-                          <Pause className="h-4 w-4 mr-2" />
-                          暂停计划
-                        </Button>
-                      ) : plan.status === 'paused' ? (
-                        <Button variant="outline" size="sm">
-                          <Play className="h-4 w-4 mr-2" />
-                          继续执行
-                        </Button>
-                      ) : plan.status === 'draft' ? (
-                        <Button size="sm">
-                          <Play className="h-4 w-4 mr-2" />
-                          启动计划
-                        </Button>
-                      ) : null}
-                      <Button variant="outline" size="sm">
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        查看详情
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4 mr-2" />
-                        编辑计划
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+        {filteredPlans.length > 0 ? (
+          <div className="grid gap-3">
+            {filteredPlans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                transactions={transactions.filter((transaction) => transaction.planId === plan.id)}
+                onView={() => setDetailPlan(plan)}
+                onEdit={() => openEditDialog(plan)}
+                onStatusChange={(status) => updatePlanStatus(plan, status)}
+                onArchive={() => archivePlan(plan)}
+              />
             ))}
           </div>
-        </CardEnterAnimation>
-
-        {/* 空状态 */}
-        {filteredPlans.length === 0 && (
-          <CardEnterAnimation delay={300}>
-            <Card className="modern-card">
-              <CardContent className="p-12 text-center">
-                <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">暂无投资计划</h3>
-                <p className="text-muted-foreground mb-4">
-                  制定您的第一个投资计划，开始系统化投资
-                </p>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  创建投资计划
-                </Button>
-              </CardContent>
-            </Card>
-          </CardEnterAnimation>
+        ) : (
+          <EmptyState
+            icon={Target}
+            title="还没有匹配的投资计划"
+            description="换一个筛选条件，或从模板创建一条新的投资计划。"
+            action={
+              <Button className="gap-2" onClick={openCreateDialog}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                新建计划
+              </Button>
+            }
+          />
         )}
+      </SectionPanel>
+
+      <PlanEditorDialog
+        open={dialogOpen}
+        plan={editingPlan}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) setEditingPlan(null)
+        }}
+        onSave={handleSavePlan}
+      />
+      <PlanDetailDialog
+        plan={detailPlan}
+        transactions={detailPlan ? transactions.filter((transaction) => transaction.planId === detailPlan.id) : []}
+        onOpenChange={(open) => !open && setDetailPlan(null)}
+        onEdit={(plan) => {
+          setDetailPlan(null)
+          openEditDialog(plan)
+        }}
+      />
+    </PageShell>
+  )
+}
+
+function PlanCard({
+  plan,
+  transactions,
+  onView,
+  onEdit,
+  onStatusChange,
+  onArchive,
+}: {
+  plan: InvestmentPlan
+  transactions: PlanLinkedTransaction[]
+  onView: () => void
+  onEdit: () => void
+  onStatusChange: (status: InvestmentPlanStatus) => void
+  onArchive: () => void
+}) {
+  const template = getPlanTypeMeta(plan.planType)
+  const statusTone = plan.executionStats.violatedTransactions > 0 ? "destructive" : plan.status === "active" ? "default" : "secondary"
+  const checkSummary = [
+    `${plan.executionStats.matchedTransactions} 符合`,
+    `${plan.executionStats.warningTransactions} 需说明`,
+    `${plan.executionStats.violatedTransactions} 偏离`,
+  ].join(" · ")
+
+  return (
+    <article className="rounded-[1.05rem] border border-white/80 bg-card/62 p-4 shadow-sm backdrop-blur-xl transition-smooth hover:border-border-hover hover:shadow-md">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{template.shortLabel}</Badge>
+            <Badge variant={statusTone}>{getStatusLabel(plan.status)}</Badge>
+            <RiskBadge risk={plan.riskLevel} />
+            {plan.executionStats.violatedTransactions > 0 ? (
+              <Badge variant="destructive" className="gap-1">
+                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                有偏离
+              </Badge>
+            ) : null}
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">{plan.title}</h2>
+          <p className="mt-1.5 max-w-3xl text-xs leading-5 text-muted-foreground">{plan.objective}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={onView}>
+            <Eye className="h-4 w-4" aria-hidden="true" />
+            详情
+          </Button>
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            编辑
+          </Button>
+        </div>
       </div>
-    </PageTransition>
+
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr_0.8fr]">
+        <div>
+          <p className="label-tiny mb-1.5">投资假设</p>
+          <p className="line-clamp-3 text-xs leading-5 text-foreground-secondary">{plan.thesis}</p>
+        </div>
+        <div>
+          <p className="label-tiny mb-1.5">主要规则</p>
+          <p className="line-clamp-3 text-xs leading-5 text-foreground-secondary">{plan.rules.entry}</p>
+        </div>
+        <div>
+          <p className="label-tiny mb-1.5">执行进度</p>
+          <div className="mb-1.5 flex items-center justify-between text-xs">
+            <span className="font-tabular">{plan.executionStats.progressPercent.toFixed(1)}%</span>
+            <span className="text-muted-foreground">¥{plan.executionStats.investedAmount.toLocaleString("zh-CN")}</span>
+          </div>
+          <Progress value={plan.executionStats.progressPercent} />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2.5 border-t border-border/80 pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          {plan.assets.map((asset) => (
+            <Badge key={`${asset.symbol}-${asset.name}`} variant="secondary">
+              {asset.symbol || asset.name || "未命名资产"}
+            </Badge>
+          ))}
+          <span>{transactions.length} 条关联交易</span>
+          <span>{checkSummary}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {plan.status === "active" ? (
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => onStatusChange("paused")}>
+              <Pause className="h-4 w-4" aria-hidden="true" />
+              暂停
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => onStatusChange("active")}>
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              激活
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="gap-1" onClick={() => onStatusChange("completed")}>
+            <CheckCircle className="h-4 w-4" aria-hidden="true" />
+            完成
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1" onClick={onArchive}>
+            <Archive className="h-4 w-4" aria-hidden="true" />
+            归档
+          </Button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function PlanEditorDialog({
+  open,
+  plan,
+  onOpenChange,
+  onSave,
+}: {
+  open: boolean
+  plan: InvestmentPlan | null
+  onOpenChange: (open: boolean) => void
+  onSave: (plan: InvestmentPlan) => void
+}) {
+  const [draft, setDraft] = useState<InvestmentPlan | null>(plan)
+
+  useEffect(() => {
+    setDraft(plan)
+  }, [plan])
+
+  if (!draft) return null
+
+  const template = getPlanTypeMeta(draft.planType)
+  const primaryAsset = draft.assets[0] ?? { symbol: "", name: "", allocation: 100, targetAmount: draft.targetAmount }
+
+  const updateDraft = (patch: Partial<InvestmentPlan>) => setDraft((value) => (value ? { ...value, ...patch } : value))
+  const updateRules = (patch: Partial<InvestmentPlan["rules"]>) => updateDraft({ rules: { ...draft.rules, ...patch } })
+  const updateRisk = (patch: Partial<InvestmentPlan["riskControl"]>) => updateDraft({ riskControl: { ...draft.riskControl, ...patch } })
+  const updateSchedule = (patch: Partial<InvestmentPlan["schedule"]>) => updateDraft({ schedule: { ...draft.schedule, ...patch } })
+  const updatePrimaryAsset = (patch: Partial<typeof primaryAsset>) => {
+    const nextAsset = { ...primaryAsset, ...patch }
+    updateDraft({ assets: [nextAsset], targetAmount: nextAsset.targetAmount || draft.targetAmount })
+  }
+
+  const handleTypeChange = (type: InvestmentPlanType) => {
+    const next = createPlanFromTemplate(type)
+    setDraft({
+      ...next,
+      id: draft.id,
+      title: next.title,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt,
+      linkedTransactionIds: draft.linkedTransactionIds,
+      linkedReviewIds: draft.linkedReviewIds,
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>{draft.linkedTransactionIds.length > 0 ? "编辑投资计划" : "创建投资计划"}</DialogTitle>
+          <DialogDescription>先选择计划类型，再填写目标、资产、规则、风控和复盘节奏。</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <section>
+            <p className="label-tiny mb-3">1. 选择计划类型</p>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {planTemplates.map((item) => (
+                <button
+                  key={item.type}
+                  type="button"
+                  onClick={() => handleTypeChange(item.type)}
+                  className={`rounded-xl border p-3 text-left transition-smooth hover:border-border-hover ${
+                    draft.planType === item.type ? "border-foreground bg-foreground text-background" : "border-border bg-background"
+                  }`}
+                >
+                  <div className="text-sm font-medium">{item.label}</div>
+                  <div className={`mt-2 text-xs leading-5 ${draft.planType === item.type ? "text-background/75" : "text-muted-foreground"}`}>
+                    {item.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-2">
+            <Field label="计划标题">
+              <Input value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} />
+            </Field>
+            <Field label="状态">
+              <Select value={draft.status} onValueChange={(status) => updateDraft({ status: status as InvestmentPlanStatus })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {editableStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {getStatusLabel(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="计划目标">
+              <Textarea value={draft.objective} onChange={(event) => updateDraft({ objective: event.target.value })} rows={3} />
+            </Field>
+            <Field label="投资假设">
+              <Textarea value={draft.thesis} onChange={(event) => updateDraft({ thesis: event.target.value })} rows={3} />
+            </Field>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-4">
+            <Field label="资产名称">
+              <Input value={primaryAsset.name} onChange={(event) => updatePrimaryAsset({ name: event.target.value })} placeholder="沪深300 ETF" />
+            </Field>
+            <Field label="资产代码">
+              <Input value={primaryAsset.symbol} onChange={(event) => updatePrimaryAsset({ symbol: event.target.value.toUpperCase() })} placeholder="510300" />
+            </Field>
+            <Field label="目标金额">
+              <Input
+                value={String(primaryAsset.targetAmount || draft.targetAmount)}
+                onChange={(event) => updatePrimaryAsset({ targetAmount: Number(event.target.value || 0) })}
+                inputMode="decimal"
+              />
+            </Field>
+            <Field label="目标仓位 %">
+              <Input
+                value={String(primaryAsset.allocation)}
+                onChange={(event) => updatePrimaryAsset({ allocation: Number(event.target.value || 0) })}
+                inputMode="decimal"
+              />
+            </Field>
+          </section>
+
+          <section>
+            <p className="label-tiny mb-3">模板重点字段</p>
+            <div className="flex flex-wrap gap-2">
+              {template.fields.map((field) => (
+                <Badge key={field} variant="secondary">
+                  {field}
+                </Badge>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-2">
+            <RuleField label="入场/买入规则" value={draft.rules.entry} onChange={(entry) => updateRules({ entry })} />
+            <RuleField label="加仓规则" value={draft.rules.add} onChange={(add) => updateRules({ add })} />
+            <RuleField label="减仓规则" value={draft.rules.reduce} onChange={(reduce) => updateRules({ reduce })} />
+            <RuleField label="退出规则" value={draft.rules.exit} onChange={(exit) => updateRules({ exit })} />
+            <RuleField label="止损/暂停规则" value={draft.rules.stopLoss} onChange={(stopLoss) => updateRules({ stopLoss })} />
+            <RuleField label="失效条件" value={draft.rules.invalidation} onChange={(invalidation) => updateRules({ invalidation })} />
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-4">
+            <Field label="单笔上限">
+              <Input value={String(draft.riskControl.maxSingleTradeAmount)} onChange={(event) => updateRisk({ maxSingleTradeAmount: Number(event.target.value || 0) })} inputMode="decimal" />
+            </Field>
+            <Field label="最大仓位 %">
+              <Input value={String(draft.riskControl.maxPositionPercent)} onChange={(event) => updateRisk({ maxPositionPercent: Number(event.target.value || 0) })} inputMode="decimal" />
+            </Field>
+            <Field label="最大亏损">
+              <Input value={String(draft.riskControl.maxLossAmount)} onChange={(event) => updateRisk({ maxLossAmount: Number(event.target.value || 0) })} inputMode="decimal" />
+            </Field>
+            <Field label="最大回撤 %">
+              <Input value={String(draft.riskControl.maxDrawdownPercent)} onChange={(event) => updateRisk({ maxDrawdownPercent: Number(event.target.value || 0) })} inputMode="decimal" />
+            </Field>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-4">
+            <Field label="开始日期">
+              <Input value={draft.schedule.startDate} onChange={(event) => updateSchedule({ startDate: event.target.value })} type="date" />
+            </Field>
+            <Field label="结束日期">
+              <Input value={draft.schedule.endDate ?? ""} onChange={(event) => updateSchedule({ endDate: event.target.value })} type="date" />
+            </Field>
+            <Field label="复盘频率">
+              <Select value={draft.schedule.reviewFrequency} onValueChange={(reviewFrequency) => updateSchedule({ reviewFrequency: reviewFrequency as InvestmentPlan["schedule"]["reviewFrequency"] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">每日</SelectItem>
+                  <SelectItem value="weekly">每周</SelectItem>
+                  <SelectItem value="biweekly">双周</SelectItem>
+                  <SelectItem value="monthly">每月</SelectItem>
+                  <SelectItem value="quarterly">每季</SelectItem>
+                  <SelectItem value="yearly">每年</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="下次复盘">
+              <Input value={draft.schedule.nextReviewDate ?? ""} onChange={(event) => updateSchedule({ nextReviewDate: event.target.value })} type="date" />
+            </Field>
+          </section>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button onClick={() => onSave(draft)} disabled={!draft.title.trim() || !draft.objective.trim()}>
+            保存计划
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PlanDetailDialog({
+  plan,
+  transactions,
+  onOpenChange,
+  onEdit,
+}: {
+  plan: InvestmentPlan | null
+  transactions: PlanLinkedTransaction[]
+  onOpenChange: (open: boolean) => void
+  onEdit: (plan: InvestmentPlan) => void
+}) {
+  if (!plan) return null
+  const template = getPlanTypeMeta(plan.planType)
+
+  return (
+    <Dialog open={Boolean(plan)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>{plan.title}</DialogTitle>
+          <DialogDescription>
+            {template.label} · {getStatusLabel(plan.status)} · {transactions.length} 条关联交易
+          </DialogDescription>
+        </DialogHeader>
+
+          <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <MiniStat label="目标金额" value={`¥${plan.targetAmount.toLocaleString("zh-CN")}`} />
+            <MiniStat label="已执行" value={`¥${plan.executionStats.investedAmount.toLocaleString("zh-CN")}`} />
+            <MiniStat label="规则偏离" value={String(plan.executionStats.violatedTransactions)} />
+          </div>
+
+          <div>
+            <p className="label-tiny mb-2">计划目标</p>
+            <p className="text-sm leading-6 text-foreground-secondary">{plan.objective}</p>
+          </div>
+          <div>
+            <p className="label-tiny mb-2">投资假设</p>
+            <p className="text-sm leading-6 text-foreground-secondary">{plan.thesis}</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <RuleBlock title="入场" value={plan.rules.entry} />
+            <RuleBlock title="加仓" value={plan.rules.add} />
+            <RuleBlock title="减仓" value={plan.rules.reduce} />
+            <RuleBlock title="退出" value={plan.rules.exit} />
+            <RuleBlock title="止损/暂停" value={plan.rules.stopLoss} />
+            <RuleBlock title="失效条件" value={plan.rules.invalidation} icon={<ShieldAlert className="h-4 w-4" aria-hidden="true" />} />
+          </div>
+
+          <div>
+            <p className="label-tiny mb-3">关联交易</p>
+            {transactions.length > 0 ? (
+              <div className="space-y-3">
+                {transactions.map((transaction) => (
+                  <div key={transaction.id} className="flex flex-col gap-2 rounded-xl border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="font-medium">{transaction.asset}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {transaction.kind === "buy" ? "买入" : "卖出"} · ¥{transaction.amount.toLocaleString("zh-CN")} · {transaction.date}
+                      </div>
+                    </div>
+                    <Badge variant={transaction.planRuleCheck === "violated" ? "destructive" : transaction.planRuleCheck === "warning" ? "secondary" : "default"}>
+                      {transaction.planRuleNotes || "已关联"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-background p-4 text-xs leading-5 text-muted-foreground">
+                暂无关联交易。新增交易时选择该计划后，会自动出现在这里。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onEdit(plan)}>
+            编辑计划
+          </Button>
+          <Button onClick={() => onOpenChange(false)}>完成</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RiskBadge({ risk }: { risk: InvestmentPlan["riskLevel"] }) {
+  const label = risk === "high" ? "高风险" : risk === "medium" ? "中风险" : "低风险"
+  return <Badge variant="outline">{label}</Badge>
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  )
+}
+
+function RuleField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <Field label={label}>
+      <Textarea value={value} onChange={(event) => onChange(event.target.value)} rows={3} />
+    </Field>
+  )
+}
+
+function RuleBlock({ title, value, icon }: { title: string; value: string; icon?: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <div className="mb-2 flex items-center gap-2">
+        {icon}
+        <p className="label-tiny">{title}</p>
+      </div>
+      <p className="text-sm leading-6 text-foreground-secondary">{value}</p>
+    </div>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <p className="label-tiny mb-2">{label}</p>
+      <p className="font-tabular text-xl font-semibold text-foreground">{value}</p>
+    </div>
   )
 }

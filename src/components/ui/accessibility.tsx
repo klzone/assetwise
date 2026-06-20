@@ -21,8 +21,15 @@ export function SkipToContent() {
 }
 
 // 屏幕阅读器专用文本
-export function ScreenReaderOnly({ children }: { children: React.ReactNode }) {
-  return <span className="sr-only">{children}</span>
+export function ScreenReaderOnly({
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span className="sr-only" {...props}>
+      {children}
+    </span>
+  )
 }
 
 // 焦点陷阱组件

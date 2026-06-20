@@ -67,6 +67,12 @@ export class TiantianFundImportService {
     const urlParams = new URLSearchParams(url.split('?')[1]);
     const subAccountNo = urlParams.get('SubAccountNo');
     
+    // 尝试从localStorage获取缓存的数据
+    const cachedData = this.getCachedPortfolioData(subAccountNo || '');
+    if (cachedData && this.isDataFresh(cachedData.lastUpdated)) {
+      return cachedData;
+    }
+    
     // 模拟数据（基于您提供的组合页面）
     const mockData: TiantianFundPortfolio = {
       name: '养老计划',
@@ -174,7 +180,61 @@ export class TiantianFundImportService {
       ]
     };
 
+    // 缓存数据
+    this.cachePortfolioData(subAccountNo || '', mockData);
+    
     return mockData;
+  }
+
+  /**
+   * 缓存投资组合数据
+   */
+  private cachePortfolioData(subAccountNo: string, data: TiantianFundPortfolio): void {
+    try {
+      const cacheKey = `tiantian_portfolio_${subAccountNo}`;
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    } catch (error) {
+      console.warn('缓存天天基金数据失败:', error);
+    }
+  }
+
+  /**
+   * 获取缓存的投资组合数据
+   */
+  private getCachedPortfolioData(subAccountNo: string): TiantianFundPortfolio | null {
+    try {
+      const cacheKey = `tiantian_portfolio_${subAccountNo}`;
+      const cached = localStorage.getItem(cacheKey);
+      return cached ? JSON.parse(cached) : null;
+    } catch (error) {
+      console.warn('读取缓存的天天基金数据失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 检查数据是否新鲜（5分钟内）
+   */
+  private isDataFresh(lastUpdated: string): boolean {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    return new Date(lastUpdated) > fiveMinutesAgo;
+  }
+
+  /**
+   * 强制刷新数据
+   */
+  async forceRefreshPortfolio(url: string): Promise<TiantianFundPortfolio> {
+    const urlParams = new URLSearchParams(url.split('?')[1]);
+    const subAccountNo = urlParams.get('SubAccountNo');
+    
+    // 清除缓存
+    if (subAccountNo) {
+      const cacheKey = `tiantian_portfolio_${subAccountNo}`;
+      localStorage.removeItem(cacheKey);
+    }
+    
+    // 重新获取数据
+    return this.parsePortfolioFromUrl(url);
   }
 
   /**
@@ -257,11 +317,85 @@ export class TiantianFundImportService {
         costPrice: holding.nav * (1 - holding.dailyChange / 100), // 估算成本价
         profit: (totalValue * holding.weight) / 100 * (holding.dailyChange / 100),
         profitRate: holding.dailyChange,
-        weight: holding.weight
+        weight: holding.weight,
+        assetType: 'fund' as const,
+        fundType: holding.type
       })),
+      portfolioType: 'fund' as const,
       tiantianUrl: tiantianData.url,
       createdAt: new Date().toISOString(),
       updatedAt: tiantianData.lastUpdated
     };
+  }
+
+  /**
+   * 同步天天基金组合到本地存储
+   */
+  async syncToLocalStorage(url: string): Promise<{ success: boolean; error?: string; data?: any }> {
+    try {
+      // 获取天天基金数据
+      const tiantianData = await this.importFromUrl(url);
+      
+      // 转换为AssetWise格式
+      const portfolioData = this.convertToAssetWiseFormat(tiantianData);
+      
+      // 保存到本地存储
+      const existingPortfolios = JSON.parse(localStorage.getItem('assetwise_portfolios') || '[]');
+      
+      // 检查是否已存在相同的天天基金组合
+      const existingIndex = existingPortfolios.findIndex((p: any) => 
+        p.tiantianUrl === url || p.id === portfolioData.id
+      );
+      
+      if (existingIndex >= 0) {
+        // 更新现有组合
+        existingPortfolios[existingIndex] = {
+          ...existingPortfolios[existingIndex],
+          ...portfolioData,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        // 添加新组合
+        existingPortfolios.push(portfolioData);
+      }
+      
+      localStorage.setItem('assetwise_portfolios', JSON.stringify(existingPortfolios));
+      
+      return { success: true, data: portfolioData };
+    } catch (error) {
+      console.error('同步天天基金组合失败:', error);
+      return { success: false, error: error instanceof Error ? error.message : '同步失败' };
+    }
+  }
+
+  /**
+   * 批量更新所有天天基金组合
+   */
+  async updateAllTiantianPortfolios(): Promise<{ success: boolean; updated: number; errors: string[] }> {
+    try {
+      const existingPortfolios = JSON.parse(localStorage.getItem('assetwise_portfolios') || '[]');
+      const tiantianPortfolios = existingPortfolios.filter((p: any) => p.tiantianUrl);
+      
+      let updated = 0;
+      const errors: string[] = [];
+      
+      for (const portfolio of tiantianPortfolios) {
+        try {
+          const result = await this.syncToLocalStorage(portfolio.tiantianUrl);
+          if (result.success) {
+            updated++;
+          } else {
+            errors.push(`${portfolio.name}: ${result.error}`);
+          }
+        } catch (error) {
+          errors.push(`${portfolio.name}: ${error instanceof Error ? error.message : '更新失败'}`);
+        }
+      }
+      
+      return { success: true, updated, errors };
+    } catch (error) {
+      console.error('批量更新天天基金组合失败:', error);
+      return { success: false, updated: 0, errors: [error instanceof Error ? error.message : '批量更新失败'] };
+    }
   }
 }

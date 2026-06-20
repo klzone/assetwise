@@ -1,495 +1,464 @@
-'use client'
+"use client"
 
-import React, { useState } from 'react'
-import { BarChart3, TrendingUp, TrendingDown, PieChart, Activity, Target, AlertTriangle, Calculator, Brain, Lightbulb, FileText } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { LocaleProvider } from '@/contexts/locale-context'
+import { useEffect, useMemo, useState } from "react"
+import {
+  AlertTriangle,
+  BarChart3,
+  Brain,
+  CheckCircle2,
+  ClipboardCheck,
+  LineChart,
+  RefreshCw,
+  ShieldCheck,
+  Target,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { MetricCard, PageHeader, PageShell, SectionPanel } from "@/components/ui/workspace"
+import {
+  buildAnalysisSnapshot,
+  getRuleCheckText,
+  type AnalysisSnapshot,
+  type InsightTone,
+} from "@/lib/analysis-insights"
+import {
+  getStoredInvestmentPlans,
+  getStoredPlanTransactions,
+  refreshPlanExecutionStats,
+  type InvestmentPlan,
+  type PlanLinkedTransaction,
+  type PlanRuleCheck,
+} from "@/lib/investment-plans"
+import { defaultAssets, getChangeTextClass, getStoredAssets, getStoredSettings, type ColorConvention, type MvpAsset } from "@/lib/mvp-store"
+import { getStoredReviews, type TargetedReview } from "@/lib/review-logs"
 
-// 资产分析页面 - 深度分析投资表现和趋势
 export default function AnalysisPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState('1Y')
-  const [selectedAsset, setSelectedAsset] = useState('all')
+  const [assets, setAssets] = useState<MvpAsset[]>(defaultAssets)
+  const [plans, setPlans] = useState<InvestmentPlan[]>([])
+  const [transactions, setTransactions] = useState<PlanLinkedTransaction[]>([])
+  const [reviews, setReviews] = useState<TargetedReview[]>([])
+  const [colorConvention, setColorConvention] = useState<ColorConvention>("chinese")
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 模拟分析数据
-  const analysisData = {
-    // 投资表现分析
-    performance: {
-      totalReturn: 150000,
-      totalReturnPercent: 15.0,
-      annualizedReturn: 12.5,
-      volatility: 18.2,
-      sharpeRatio: 1.25,
-      maxDrawdown: -8.5,
-      winRate: 68.5,
-      bestMonth: { date: '2024-03', return: 8.2 },
-      worstMonth: { date: '2024-08', return: -5.1 }
-    },
+  const loadData = () => {
+    const storedTransactions = getStoredPlanTransactions()
+    const storedPlans = refreshPlanExecutionStats(getStoredInvestmentPlans(), storedTransactions)
 
-    // 资产类别表现
-    categoryPerformance: [
-      { category: '房地产', return: 13.33, volatility: 5.2, sharpeRatio: 2.1, allocation: 73.9 },
-      { category: '股票', return: 16.95, volatility: 22.1, sharpeRatio: 0.8, allocation: 15.3 },
-      { category: '虚拟货币', return: 12.5, volatility: 45.8, sharpeRatio: 0.3, allocation: 2.0 },
-      { category: '现金', return: 3.15, volatility: 0.1, sharpeRatio: 15.0, allocation: 4.5 },
-      { category: '基金', return: 7.8, volatility: 15.2, sharpeRatio: 0.5, allocation: 0.9 },
-      { category: '债券', return: 2.5, volatility: 3.1, sharpeRatio: 0.8, allocation: 0.9 },
-      { category: '保险', return: 4.17, volatility: 1.2, sharpeRatio: 3.5, allocation: 1.1 },
-      { category: '贵金属', return: 7.14, volatility: 12.8, sharpeRatio: 0.6, allocation: 0.4 }
-    ],
-
-    // 风险分析
-    riskAnalysis: {
-      portfolioRisk: 'medium',
-      concentrationRisk: 'high', // 房地产占比过高
-      liquidityRisk: 'medium',
-      currencyRisk: 'low',
-      interestRateRisk: 'low',
-      marketRisk: 'medium'
-    },
-
-    // 投资建议
-    recommendations: [
-      {
-        type: 'warning',
-        title: '资产配置过于集中',
-        description: '房地产占比73.9%，建议分散投资降低集中度风险',
-        priority: 'high',
-        action: '减持房地产，增加股票和债券配置'
-      },
-      {
-        type: 'info',
-        title: '现金配置偏低',
-        description: '现金及等价物仅占4.5%，建议保持10-15%的流动性',
-        priority: 'medium',
-        action: '增加货币基金或银行理财配置'
-      },
-      {
-        type: 'success',
-        title: '债券配置不足',
-        description: '债券仅占0.9%，建议增加至10-15%以降低组合波动',
-        priority: 'medium',
-        action: '配置国债或高等级企业债'
-      },
-      {
-        type: 'info',
-        title: '虚拟货币风险较高',
-        description: '虚拟货币波动率45.8%，建议控制在5%以内',
-        priority: 'low',
-        action: '适当减持高风险数字资产'
-      }
-    ],
-
-    // 市场趋势分析
-    marketTrends: {
-      stockMarket: { trend: 'bullish', confidence: 75, description: '科技股表现强劲，市场情绪乐观' },
-      bondMarket: { trend: 'neutral', confidence: 60, description: '利率预期稳定，债券收益率波动较小' },
-      realEstate: { trend: 'bearish', confidence: 65, description: '政策调控持续，房地产市场承压' },
-      crypto: { trend: 'volatile', confidence: 45, description: '监管不确定性增加，波动性较大' },
-      commodities: { trend: 'bullish', confidence: 70, description: '通胀预期推动大宗商品价格上涨' }
-    }
+    setAssets(getStoredAssets())
+    setTransactions(storedTransactions)
+    setPlans(storedPlans)
+    setReviews(getStoredReviews())
+    setColorConvention(getStoredSettings().colorConvention)
   }
 
-  const getRiskColor = (risk: string) => {
-    switch (risk) {
-      case 'low': return 'text-green-600 bg-green-50'
-      case 'medium': return 'text-yellow-600 bg-yellow-50'
-      case 'high': return 'text-red-600 bg-red-50'
-      default: return 'text-gray-600 bg-gray-50'
+  useEffect(() => {
+    loadData()
+    window.addEventListener("assetwise-assets-updated", loadData)
+    window.addEventListener("assetwise-plans-updated", loadData)
+    window.addEventListener("assetwise-transactions-updated", loadData)
+    window.addEventListener("assetwise-reviews-updated", loadData)
+    window.addEventListener("assetwise-settings-updated", loadData)
+    window.addEventListener("focus", loadData)
+    return () => {
+      window.removeEventListener("assetwise-assets-updated", loadData)
+      window.removeEventListener("assetwise-plans-updated", loadData)
+      window.removeEventListener("assetwise-transactions-updated", loadData)
+      window.removeEventListener("assetwise-reviews-updated", loadData)
+      window.removeEventListener("assetwise-settings-updated", loadData)
+      window.removeEventListener("focus", loadData)
     }
-  }
+  }, [])
 
-  const getRiskText = (risk: string) => {
-    switch (risk) {
-      case 'low': return '低风险'
-      case 'medium': return '中等风险'
-      case 'high': return '高风险'
-      default: return '未知'
-    }
-  }
+  const snapshot = useMemo(
+    () => buildAnalysisSnapshot({ assets, plans, transactions, reviews }),
+    [assets, plans, reviews, transactions],
+  )
+  const totalProfitClass = getChangeTextClass(snapshot.portfolio.totalProfit, colorConvention)
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'bullish': return <TrendingUp className="h-4 w-4 text-green-600" />
-      case 'bearish': return <TrendingDown className="h-4 w-4 text-red-600" />
-      case 'neutral': return <Activity className="h-4 w-4 text-gray-600" />
-      case 'volatile': return <Activity className="h-4 w-4 text-orange-600" />
-      default: return <Activity className="h-4 w-4 text-gray-600" />
-    }
-  }
-
-  const getRecommendationIcon = (type: string) => {
-    switch (type) {
-      case 'warning': return <AlertTriangle className="h-5 w-5 text-red-600" />
-      case 'info': return <Lightbulb className="h-5 w-5 text-blue-600" />
-      case 'success': return <Target className="h-5 w-5 text-green-600" />
-      default: return <FileText className="h-5 w-5 text-gray-600" />
-    }
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    loadData()
+    window.setTimeout(() => setIsRefreshing(false), 450)
   }
 
   return (
-    <LocaleProvider>
-      <div className="container mx-auto p-6 space-y-6">
-        {/* 页面标题 */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">资产分析</h1>
-            <p className="text-muted-foreground mt-2">
-              深度分析您的投资表现，发现投资机会，优化资产配置策略
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {['1M', '3M', '6M', '1Y', '3Y', '5Y'].map((period) => (
-              <Button
-                key={period}
-                variant={selectedPeriod === period ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedPeriod(period)}
-              >
-                {period}
-              </Button>
-            ))}
-          </div>
-        </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Analysis"
+        title="数据分析"
+        description="聚合资产、交易、投资计划和复盘日志，观察收益、纪律、情绪和风险暴露，形成下一步可执行建议。"
+        actions={
+          <Button variant="outline" className="gap-2" onClick={handleRefresh}>
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+            刷新分析
+          </Button>
+        }
+      />
 
-        {/* 关键指标概览 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">年化收益率</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {analysisData.performance.annualizedReturn.toFixed(1)}%
-              </div>
-              <p className="text-xs text-muted-foreground">
-                总收益 ¥{analysisData.performance.totalReturn.toLocaleString()}
-              </p>
-            </CardContent>
-          </Card>
+      <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MetricCard
+          title="纪律评分"
+          value={`${snapshot.discipline.score}`}
+          detail="计划关联、规则符合、复盘覆盖综合评分"
+          tone={snapshot.discipline.score >= 80 ? "positive" : snapshot.discipline.score >= 60 ? "warning" : "negative"}
+          icon={ShieldCheck}
+        />
+        <MetricCard
+          title="累计收益率"
+          value={`${withSign(snapshot.portfolio.totalProfitPercent)}%`}
+          detail={`${withCurrency(snapshot.portfolio.totalProfit)} 累计收益`}
+          valueClassName={totalProfitClass}
+          iconClassName={totalProfitClass}
+          icon={snapshot.portfolio.totalProfit >= 0 ? TrendingUp : TrendingDown}
+        />
+        <MetricCard
+          title="计划内交易"
+          value={`${snapshot.discipline.linkedRatio.toFixed(0)}%`}
+          detail={`${snapshot.discipline.linkedTransactions} / ${snapshot.transactions.total} 笔已关联计划`}
+          tone={snapshot.discipline.linkedRatio >= 80 ? "positive" : "warning"}
+          icon={Target}
+        />
+        <MetricCard
+          title="复盘覆盖"
+          value={`${snapshot.discipline.reviewCoverage.toFixed(0)}%`}
+          detail={`${snapshot.discipline.reviewedTransactions} 笔交易已进入复盘`}
+          tone={snapshot.discipline.reviewCoverage >= 80 ? "positive" : "warning"}
+          icon={ClipboardCheck}
+        />
+      </section>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">夏普比率</CardTitle>
-              <Calculator className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {analysisData.performance.sharpeRatio.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                风险调整后收益
-              </p>
-            </CardContent>
-          </Card>
+      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <PortfolioPanel snapshot={snapshot} colorConvention={colorConvention} />
+        <ExecutionPanel snapshot={snapshot} />
+      </section>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">最大回撤</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {analysisData.performance.maxDrawdown.toFixed(1)}%
-              </div>
-              <p className="text-xs text-muted-foreground">
-                历史最大损失
-              </p>
-            </CardContent>
-          </Card>
+      <section className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <PlanPanel snapshot={snapshot} />
+        <ReviewPanel snapshot={snapshot} />
+      </section>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">胜率</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {analysisData.performance.winRate.toFixed(1)}%
-              </div>
-              <p className="text-xs text-muted-foreground">
-                盈利月份占比
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 详细分析标签页 */}
-        <Tabs defaultValue="performance" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="performance">表现分析</TabsTrigger>
-            <TabsTrigger value="risk">风险分析</TabsTrigger>
-            <TabsTrigger value="trends">市场趋势</TabsTrigger>
-            <TabsTrigger value="recommendations">投资建议</TabsTrigger>
-          </TabsList>
-
-          {/* 表现分析 */}
-          <TabsContent value="performance" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    资产类别表现
-                  </CardTitle>
-                  <CardDescription>
-                    各资产类别的收益率和风险指标对比
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analysisData.categoryPerformance.map((item) => (
-                      <div key={item.category} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{item.category}</span>
-                          <div className="text-right">
-                            <div className={`font-medium ${
-                              item.return >= 0 ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {item.return >= 0 ? '+' : ''}{item.return.toFixed(2)}%
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              配置: {item.allocation.toFixed(1)}%
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">波动率: </span>
-                            <span>{item.volatility.toFixed(1)}%</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">夏普: </span>
-                            <span>{item.sharpeRatio.toFixed(1)}</span>
-                          </div>
-                        </div>
-                        <Progress value={item.allocation} className="h-2" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    历史表现
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedPeriod} 期间的投资组合表现趋势
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-12 text-muted-foreground">
-                    <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium mb-2">表现图表</h3>
-                    <p>显示投资组合的历史收益曲线</p>
-                    <p className="text-sm mt-2">功能开发中...</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>关键表现指标</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      +{analysisData.performance.bestMonth.return}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">最佳月份</div>
-                    <div className="text-xs text-muted-foreground">
-                      {analysisData.performance.bestMonth.date}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {analysisData.performance.worstMonth.return}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">最差月份</div>
-                    <div className="text-xs text-muted-foreground">
-                      {analysisData.performance.worstMonth.date}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      {analysisData.performance.volatility.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">年化波动率</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">
-                      {analysisData.performance.winRate.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">胜率</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 风险分析 */}
-          <TabsContent value="risk" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5" />
-                    风险评估
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">投资组合风险</span>
-                    <Badge className={getRiskColor(analysisData.riskAnalysis.portfolioRisk)}>
-                      {getRiskText(analysisData.riskAnalysis.portfolioRisk)}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">集中度风险</span>
-                    <Badge className={getRiskColor(analysisData.riskAnalysis.concentrationRisk)}>
-                      {getRiskText(analysisData.riskAnalysis.concentrationRisk)}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">流动性风险</span>
-                    <Badge className={getRiskColor(analysisData.riskAnalysis.liquidityRisk)}>
-                      {getRiskText(analysisData.riskAnalysis.liquidityRisk)}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">汇率风险</span>
-                    <Badge className={getRiskColor(analysisData.riskAnalysis.currencyRisk)}>
-                      {getRiskText(analysisData.riskAnalysis.currencyRisk)}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">利率风险</span>
-                    <Badge className={getRiskColor(analysisData.riskAnalysis.interestRateRisk)}>
-                      {getRiskText(analysisData.riskAnalysis.interestRateRisk)}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">市场风险</span>
-                    <Badge className={getRiskColor(analysisData.riskAnalysis.marketRisk)}>
-                      {getRiskText(analysisData.riskAnalysis.marketRisk)}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>风险分布</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    风险分布图表
-                    <br />
-                    <small>功能开发中...</small>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* 市场趋势 */}
-          <TabsContent value="trends" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5" />
-                  市场趋势分析
-                </CardTitle>
-                <CardDescription>
-                  基于市场数据和技术指标的趋势判断
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(analysisData.marketTrends).map(([market, data]) => (
-                    <div key={market} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          {getTrendIcon(data.trend)}
-                          <h4 className="font-medium">
-                            {market === 'stockMarket' && '股票市场'}
-                            {market === 'bondMarket' && '债券市场'}
-                            {market === 'realEstate' && '房地产市场'}
-                            {market === 'crypto' && '虚拟货币市场'}
-                            {market === 'commodities' && '大宗商品市场'}
-                          </h4>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant="outline">
-                            信心度: {data.confidence}%
-                          </Badge>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{data.description}</p>
-                      <Progress value={data.confidence} className="mt-2 h-2" />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 投资建议 */}
-          <TabsContent value="recommendations" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5" />
-                  智能投资建议
-                </CardTitle>
-                <CardDescription>
-                  基于您的投资组合分析生成的个性化建议
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {analysisData.recommendations.map((rec, index) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        {getRecommendationIcon(rec.type)}
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-medium">{rec.title}</h4>
-                            <Badge variant={
-                              rec.priority === 'high' ? 'destructive' :
-                              rec.priority === 'medium' ? 'default' : 'secondary'
-                            }>
-                              {rec.priority === 'high' && '高优先级'}
-                              {rec.priority === 'medium' && '中优先级'}
-                              {rec.priority === 'low' && '低优先级'}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {rec.description}
-                          </p>
-                          <div className="text-sm font-medium text-blue-600">
-                            建议行动: {rec.action}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </LocaleProvider>
+      <RecommendationPanel snapshot={snapshot} />
+    </PageShell>
   )
+}
+
+function PortfolioPanel({ snapshot, colorConvention }: { snapshot: AnalysisSnapshot; colorConvention: ColorConvention }) {
+  const todayProfitClass = getChangeTextClass(snapshot.portfolio.todayProfit, colorConvention)
+
+  return (
+    <SectionPanel
+      eyebrow="Portfolio"
+      title="组合结构与收益"
+      action={<LineChart className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
+    >
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat
+          title="总市值"
+          value={formatCurrency(snapshot.portfolio.totalValue)}
+          detail={`成本 ${formatCurrency(snapshot.portfolio.totalCost)}`}
+        />
+        <MiniStat
+          title="今日收益"
+          value={`${withCurrency(snapshot.portfolio.todayProfit)}`}
+          detail={`${withSign(snapshot.portfolio.todayProfitPercent)}%`}
+          valueClassName={todayProfitClass}
+        />
+        <MiniStat
+          title="高风险暴露"
+          value={`${snapshot.portfolio.highRiskPercent.toFixed(0)}%`}
+          detail={`现金/防御 ${snapshot.portfolio.cashLikePercent.toFixed(0)}%`}
+          tone={snapshot.portfolio.highRiskPercent > 35 ? "warning" : "default"}
+        />
+      </div>
+
+      <div className="space-y-3">
+        {snapshot.portfolio.allocation.map((item) => (
+          <BarRow
+            key={item.name}
+            label={item.name}
+            value={item.value}
+            valueLabel={`${item.value.toFixed(1)}%`}
+            detail={formatCurrency(item.amount)}
+            tone="default"
+          />
+        ))}
+      </div>
+    </SectionPanel>
+  )
+}
+
+function ExecutionPanel({ snapshot }: { snapshot: AnalysisSnapshot }) {
+  const ruleRows: Array<{ status: PlanRuleCheck; value: number; tone: InsightTone }> = [
+    { status: "matched", value: snapshot.transactions.byRuleCheck.matched, tone: "positive" },
+    { status: "warning", value: snapshot.transactions.byRuleCheck.warning, tone: "warning" },
+    { status: "violated", value: snapshot.transactions.byRuleCheck.violated, tone: "negative" },
+    { status: "not_checked", value: snapshot.transactions.byRuleCheck.not_checked, tone: "default" },
+  ]
+
+  return (
+    <SectionPanel
+      eyebrow="Execution"
+      title="交易纪律"
+      action={<CheckCircle2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
+    >
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat title="交易笔数" value={snapshot.transactions.total} detail={`均值 ${formatCurrency(snapshot.transactions.averageAmount)}`} />
+        <MiniStat title="买入金额" value={formatCurrency(snapshot.transactions.buyAmount)} tone="positive" />
+        <MiniStat title="卖出金额" value={formatCurrency(snapshot.transactions.sellAmount)} tone="negative" />
+      </div>
+
+      <div className="space-y-3">
+        {ruleRows.map((row) => (
+          <BarRow
+            key={row.status}
+            label={getRuleCheckText(row.status)}
+            value={snapshot.transactions.total > 0 ? (row.value / snapshot.transactions.total) * 100 : 0}
+            valueLabel={`${row.value} 笔`}
+            detail={`${(snapshot.transactions.total > 0 ? (row.value / snapshot.transactions.total) * 100 : 0).toFixed(0)}%`}
+            tone={row.tone}
+          />
+        ))}
+      </div>
+
+      <div className="mt-5">
+        <p className="label-tiny mb-4">高频交易标的</p>
+        <div className="grid gap-3">
+          {snapshot.transactions.topAssets.length > 0 ? (
+            snapshot.transactions.topAssets.map((asset) => (
+              <div key={asset.symbol || asset.name} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{asset.symbol || "未填代码"} · {asset.count} 笔</p>
+                </div>
+                <p className="font-tabular text-sm text-foreground">{formatCurrency(asset.amount)}</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">暂无交易记录。</p>
+          )}
+        </div>
+      </div>
+    </SectionPanel>
+  )
+}
+
+function PlanPanel({ snapshot }: { snapshot: AnalysisSnapshot }) {
+  return (
+    <SectionPanel
+      eyebrow="Plans"
+      title="计划执行质量"
+      action={<Target className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
+    >
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat title="计划总数" value={snapshot.plans.total} detail={`${snapshot.plans.active} 个执行中`} />
+        <MiniStat title="平均进度" value={`${snapshot.plans.averageProgress.toFixed(0)}%`} />
+        <MiniStat
+          title="待复盘线索"
+          value={snapshot.discipline.pendingReviews}
+          tone={snapshot.discipline.pendingReviews > 0 ? "warning" : "positive"}
+        />
+      </div>
+
+      <div className="space-y-3">
+        {snapshot.plans.typeBreakdown.length > 0 ? (
+          snapshot.plans.typeBreakdown.map((item) => (
+            <BarRow
+              key={item.type}
+              label={item.label}
+              value={item.progress}
+              valueLabel={`${item.progress.toFixed(0)}%`}
+              detail={`${item.count} 个计划 · ${item.deviations} 次偏离/说明`}
+              tone={item.deviations > 0 ? "warning" : "default"}
+            />
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">暂无投资计划。</p>
+        )}
+      </div>
+    </SectionPanel>
+  )
+}
+
+function ReviewPanel({ snapshot }: { snapshot: AnalysisSnapshot }) {
+  return (
+    <SectionPanel
+      eyebrow="Reviews"
+      title="复盘与情绪"
+      action={<Brain className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
+    >
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <MiniStat title="复盘数量" value={snapshot.reviews.total} detail={`${snapshot.reviews.effective} 条有效结论`} />
+        <MiniStat
+          title="平均情绪"
+          value={`${snapshot.reviews.averageEmotion.toFixed(1)}/10`}
+          tone={snapshot.reviews.averageEmotion < 5 && snapshot.reviews.averageEmotion > 0 ? "warning" : "default"}
+        />
+        <MiniStat
+          title="待修正结论"
+          value={snapshot.reviews.needsFix}
+          tone={snapshot.reviews.needsFix > 0 ? "warning" : "positive"}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <div>
+          <p className="label-tiny mb-4">情绪评分走势</p>
+          <div className="flex h-36 items-end gap-2 rounded-xl border border-border bg-background p-3" aria-label="情绪评分走势，满分 10 分">
+            {snapshot.reviews.emotionTrend.length > 0 ? (
+              snapshot.reviews.emotionTrend.map((point) => (
+                <div key={`${point.date}-${point.title}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div
+                    className="w-full rounded-t-md bg-foreground"
+                    style={{ height: `${Math.max(8, point.score * 10)}%` }}
+                    title={`${point.date} ${point.score}/10 ${point.title}`}
+                  />
+                  <span className="font-tabular text-xs text-muted-foreground">{point.score}</span>
+                </div>
+              ))
+            ) : (
+              <p className="self-center text-sm text-muted-foreground">暂无复盘情绪记录。</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="label-tiny mb-4">复盘焦点</p>
+          <div className="space-y-2.5">
+            {snapshot.reviews.focusBreakdown.length > 0 ? (
+              snapshot.reviews.focusBreakdown.map((item) => (
+                <div key={item.focus} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-2.5">
+                  <span className="text-sm text-foreground">{item.label}</span>
+                  <Badge variant="secondary">{item.count} 条</Badge>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">暂无复盘分类。</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="label-tiny mb-4">高频复盘标签</p>
+        <div className="flex flex-wrap gap-2">
+          {snapshot.reviews.topTags.length > 0 ? (
+            snapshot.reviews.topTags.map((item) => (
+              <Badge key={item.tag} variant="outline">
+                {item.tag} · {item.count}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-sm text-muted-foreground">暂无标签。</span>
+          )}
+        </div>
+      </div>
+    </SectionPanel>
+  )
+}
+
+function RecommendationPanel({ snapshot }: { snapshot: AnalysisSnapshot }) {
+  return (
+    <SectionPanel
+      className="mt-4"
+      eyebrow="Recommendations"
+      title="下一步建议"
+      description="建议只基于当前本地数据生成，用于纪律提醒和复盘方向，不构成买卖建议。"
+      action={<BarChart3 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
+    >
+      <div className="grid gap-3 lg:grid-cols-3">
+        {snapshot.recommendations.map((item) => {
+          const Icon = item.tone === "negative" || item.tone === "warning" ? AlertTriangle : ShieldCheck
+          return (
+            <article key={item.title} className="rounded-xl border border-border bg-background p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <Icon className={`h-4 w-4 ${toneTextClass(item.tone)}`} aria-hidden="true" />
+                <Badge variant={item.priority === "high" ? "destructive" : item.priority === "medium" ? "secondary" : "outline"}>
+                  {item.priority === "high" ? "高优先级" : item.priority === "medium" ? "中优先级" : "低优先级"}
+                </Badge>
+              </div>
+              <h3 className="mb-1.5 text-sm font-semibold text-foreground">{item.title}</h3>
+              <p className="line-clamp-3 text-xs leading-5 text-muted-foreground">{item.description}</p>
+            </article>
+          )
+        })}
+      </div>
+    </SectionPanel>
+  )
+}
+
+function MiniStat({
+  title,
+  value,
+  detail,
+  tone = "default",
+  valueClassName,
+}: {
+  title: string
+  value: React.ReactNode
+  detail?: React.ReactNode
+  tone?: InsightTone
+  valueClassName?: string
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <p className="label-tiny mb-2">{title}</p>
+      <p className={`font-tabular text-xl font-semibold ${valueClassName ?? toneTextClass(tone)}`}>{value}</p>
+      {detail ? <p className="mt-1.5 text-xs text-muted-foreground">{detail}</p> : null}
+    </div>
+  )
+}
+
+function BarRow({
+  label,
+  value,
+  valueLabel,
+  detail,
+  tone,
+}: {
+  label: string
+  value: number
+  valueLabel: string
+  detail?: string
+  tone: InsightTone
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="font-tabular text-muted-foreground">{valueLabel}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted" aria-label={`${label} ${valueLabel}`}>
+        <div className={`h-1.5 rounded-full ${toneBgClass(tone)}`} style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }} />
+      </div>
+      {detail ? <div className="mt-2 text-xs text-muted-foreground">{detail}</div> : null}
+    </div>
+  )
+}
+
+function formatCurrency(value: number) {
+  return `¥${Math.round(value).toLocaleString("zh-CN")}`
+}
+
+function withCurrency(value: number) {
+  return `${value >= 0 ? "+" : ""}${formatCurrency(value)}`
+}
+
+function withSign(value: number) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`
+}
+
+function toneTextClass(tone: InsightTone) {
+  if (tone === "positive") return "text-success"
+  if (tone === "negative") return "text-destructive"
+  if (tone === "warning") return "text-warning"
+  return "text-foreground"
+}
+
+function toneBgClass(tone: InsightTone) {
+  if (tone === "positive") return "bg-success"
+  if (tone === "negative") return "bg-destructive"
+  if (tone === "warning") return "bg-warning"
+  return "bg-foreground"
 }

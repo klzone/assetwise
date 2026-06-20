@@ -1,0 +1,67 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 3,
+      "startServerCommand": "npm start",
+      "startServerReadyPattern": "ready on",
+      "url": [
+        "http://localhost:3000",
+        "http://localhost:3000/login",
+        "http://localhost:3000/dashboard",
+        "http://localhost:3000/assets"
+      ],
+      "settings": {
+        "chromeFlags": "--no-sandbox --headless",
+        "preset": "desktop",
+        "throttling": {
+          "rttMs": 40,
+          "throughputKbps": 10240,
+          "cpuSlowdownMultiplier": 1,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 0,
+          "uploadThroughputKbps": 0
+        }
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["warn", {"minScore": 0.8}],
+        "categories:accessibility": ["error", {"minScore": 0.9}],
+        "categories:best-practices": ["warn", {"minScore": 0.85}],
+        "categories:seo": ["warn", {"minScore": 0.8}],
+        "categories:pwa": ["warn", {"minScore": 0.7}],
+        
+        "first-contentful-paint": ["warn", {"maxNumericValue": 2000}],
+        "largest-contentful-paint": ["error", {"maxNumericValue": 3000}],
+        "first-meaningful-paint": ["warn", {"maxNumericValue": 2500}],
+        "speed-index": ["warn", {"maxNumericValue": 3000}],
+        "total-blocking-time": ["error", {"maxNumericValue": 300}],
+        "max-potential-fid": ["warn", {"maxNumericValue": 130}],
+        "cumulative-layout-shift": ["error", {"maxNumericValue": 0.1}],
+        
+        "interactive": ["error", {"maxNumericValue": 4000}],
+        "uses-responsive-images": "warn",
+        "offscreen-images": "warn",
+        "render-blocking-resources": "warn",
+        "unminified-css": "error",
+        "unminified-javascript": "error",
+        "unused-css-rules": "warn",
+        "uses-optimized-images": "warn",
+        "uses-webp-images": "warn",
+        "uses-text-compression": "error",
+        "redirects": "warn"
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage",
+      "githubAppToken": "placeholder-token"
+    },
+    "server": {
+      "port": 9001,
+      "storage": "./lhci_reports"
+    },
+    "wizard": {
+      "preset": "desktop"
+    }
+  }
+}

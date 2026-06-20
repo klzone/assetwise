@@ -86,7 +86,7 @@ export async function deleteAsset(assetId: string) {
   try {
     const { data, error } = await supabase
       .from('assets')
-      .update({ 
+      .update({
         is_active: false,
         updated_at: new Date().toISOString()
       })
@@ -322,9 +322,9 @@ export async function getPortfolioOverview(userId: string) {
     if (accountsError) throw accountsError
 
     // 计算总值
-    const totalAssetValue = assets?.reduce((sum, asset) => sum + (asset.market_value || 0), 0) || 0
-    const totalCashBalance = accounts?.reduce((sum, account) => sum + (account.balance || 0), 0) || 0
-    const totalProfitLoss = assets?.reduce((sum, asset) => sum + (asset.profit_loss || 0), 0) || 0
+    const totalAssetValue = assets?.reduce((sum: number, asset) => sum + (Number(asset.market_value) || 0), 0) || 0
+    const totalCashBalance = accounts?.reduce((sum: number, account) => sum + (Number(account.balance) || 0), 0) || 0
+    const totalProfitLoss = assets?.reduce((sum: number, asset) => sum + (Number(asset.profit_loss) || 0), 0) || 0
 
     const overview = {
       totalValue: totalAssetValue + totalCashBalance,
@@ -363,9 +363,9 @@ async function updateAssetPosition(userId: string, symbol: string, transactionTy
 
     if (existingAsset) {
       // 更新现有资产
-      const currentQuantity = existingAsset.quantity || 0
-      const currentAverageCost = existingAsset.average_cost || 0
-      
+      const currentQuantity = Number(existingAsset.quantity) || 0
+      const currentAverageCost = Number(existingAsset.average_cost) || 0
+
       let newQuantity: number
       let newAverageCost: number
 
@@ -382,7 +382,7 @@ async function updateAssetPosition(userId: string, symbol: string, transactionTy
         .update({
           quantity: newQuantity,
           average_cost: newAverageCost,
-          market_value: newQuantity * (existingAsset.current_price || price),
+          market_value: newQuantity * (Number(existingAsset.current_price) || price),
           updated_at: new Date().toISOString()
         })
         .eq('id', existingAsset.id)

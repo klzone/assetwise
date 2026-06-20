@@ -21,7 +21,7 @@ import {
   Zap,
   Upload,
   Download,
-  Sync,
+  RefreshCw,
   Timer
 } from 'lucide-react';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
@@ -233,7 +233,7 @@ export function RealTimeSyncMonitor() {
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'sync_start': return <Play className="w-4 h-4 text-blue-400" />;
-      case 'sync_progress': return <Sync className="w-4 h-4 text-blue-400 animate-spin" />;
+      case 'sync_progress': return <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />;
       case 'sync_complete': return <CheckCircle className="w-4 h-4 text-green-400" />;
       case 'sync_error': return <XCircle className="w-4 h-4 text-red-400" />;
       case 'conflict_detected': return <AlertTriangle className="w-4 h-4 text-amber-400" />;
@@ -314,7 +314,7 @@ export function RealTimeSyncMonitor() {
         <Card className="bg-slate-900/80 backdrop-blur-md border-white/10">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
-              <Sync className="w-5 h-5 text-blue-400 animate-spin" />
+              <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />
               <div className="flex-1">
                 <p className="text-white font-medium">{realTimeStats.currentOperation}</p>
                 <div className="flex items-center space-x-4 mt-2">

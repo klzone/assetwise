@@ -14,21 +14,9 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/store';
+import type { ReportConfig } from '@/lib/services/pdf-report.service';
 
 // 简化的 ReportConfig 类型定义
-interface ReportConfig {
-  includeCharts: boolean;
-  includeSummary: boolean;
-  includeDetails: boolean;
-  customTitle: string;
-  includePerformanceAnalysis?: boolean;
-  includeRiskAnalysis?: boolean;
-  dateRange?: {
-    start: Date;
-    end: Date;
-  };
-}
-
 // 简化的 toast 函数
 const toast = {
   error: (message: string) => console.error(message),
@@ -47,6 +35,8 @@ export const PDFReportGenerator: React.FC<PDFReportGeneratorProps> = ({ classNam
     includeCharts: true,
     includeSummary: true,
     includeDetails: true,
+    includePerformanceAnalysis: true,
+    includeRiskAnalysis: true,
     customTitle: '',
   });
   const [dateRange, setDateRange] = useState<{
@@ -74,45 +64,56 @@ export const PDFReportGenerator: React.FC<PDFReportGeneratorProps> = ({ classNam
     }
 
     setIsGenerating(true);
-    
+
     try {
       // 准备配置
       const reportConfig: ReportConfig = {
         ...config,
+        includePerformanceAnalysis: !!config.includePerformanceAnalysis, // Ensure boolean
+        includeRiskAnalysis: !!config.includeRiskAnalysis, // Ensure boolean
         dateRange: dateRange.start && dateRange.end ? {
           start: dateRange.start,
           end: dateRange.end,
         } : undefined,
       };
 
-      // 直接调用PDF生成API
-      const response = await fetch('/api/generate-pdf-report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          reportType,
-          config: reportConfig,
-        }),
-      });
+      // 动态导入服务以避免SSR问题
+      const { PDFReportService } = await import('@/lib/services/pdf-report.service');
 
-      if (!response.ok) {
-        throw new Error('生成报告失败');
-      }
+      // 动态导入 stores (或者直接使用 hooks 如果是在组件顶层，但这里是在函数内部)
+      // 注意：在组件内部使用 store hooks 是响应式的，但在 async 函数中我们需要获取当前状态
+      // 我们需要导入 store 实例来获取 getState()
+      const { useAccountStore, useTransactionStore, useAssetStore, useReviewLogStore } = await import('@/store');
 
-      // 下载PDF文件
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `AssetWise-${reportType}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const pdfService = new PDFReportService();
+
+      // 获取数据 (从 store 中获取当前状态)
+      const accounts = useAccountStore.getState().accounts;
+      const transactions = useTransactionStore.getState().transactions;
+      const assets = useAssetStore.getState().assets;
+      const reviews = useReviewLogStore.getState().reviewLogs;
+
+      // 构造符合 User 接口的用户对象
+      const reportUser = {
+        id: user.id,
+        username: user.username || user.email.split('@')[0],
+        email: user.email,
+        subscription_type: user.subscription_type,
+        created_at: new Date().toISOString(), // AuthUser 可能没有 created_at，使用当前时间或默认值
+      };
+
+      // 生成报告数据
+      const reportData = await pdfService.generateBasicReportData(
+        reportUser,
+        accounts,
+        transactions,
+        assets,
+        reviews,
+        reportConfig
+      );
+
+      // 生成PDF
+      pdfService.generatePDF(reportData, reportConfig);
 
       toast.success('PDF报告生成成功！');
     } catch (error) {
@@ -269,7 +270,7 @@ export const PDFReportGenerator: React.FC<PDFReportGeneratorProps> = ({ classNam
               <Checkbox
                 id="include-summary"
                 checked={config.includeSummary}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setConfig({ ...config, includeSummary: checked as boolean })
                 }
               />
@@ -279,7 +280,7 @@ export const PDFReportGenerator: React.FC<PDFReportGeneratorProps> = ({ classNam
               <Checkbox
                 id="include-details"
                 checked={config.includeDetails}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setConfig({ ...config, includeDetails: checked as boolean })
                 }
               />
@@ -289,7 +290,7 @@ export const PDFReportGenerator: React.FC<PDFReportGeneratorProps> = ({ classNam
               <Checkbox
                 id="include-charts"
                 checked={config.includeCharts}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   setConfig({ ...config, includeCharts: checked as boolean })
                 }
               />
@@ -299,8 +300,8 @@ export const PDFReportGenerator: React.FC<PDFReportGeneratorProps> = ({ classNam
         </div>
 
         {/* 生成按钮 */}
-        <Button 
-          onClick={handleGenerateReport} 
+        <Button
+          onClick={handleGenerateReport}
           disabled={isGenerating}
           className="w-full"
         >
